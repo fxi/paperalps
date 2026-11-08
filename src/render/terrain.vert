@@ -21,32 +21,16 @@ uniform float uGnd;       // ground under flyer, fallback height
 
 out vec2 vRel;
 out float vDist;
-out vec2 vShade;
+out float vAO;
 
-// Cast shadow + curvature AO at a fixed world footprint `fp` (data px).
-vec2 shade(vec2 rel, float h, float fp) {
+// Large-scale curvature AO at a fixed world footprint `fp` (data px). Smooth
+// enough to interpolate across the grid. (Cast shadows are per pixel: per
+// vertex they followed the grid cells and showed a staircase.)
+float aoAt(vec2 rel, float h, float fp) {
   float r2 = max(28.0 * fp, 24.0);
   float hm = 0.25 * (H(rel + vec2(r2, 0.0)) + H(rel - vec2(r2, 0.0)) + H(rel + vec2(0.0, r2)) + H(rel - vec2(0.0, r2)));
   float curv = (hm - h) * uExag / (r2 * uMpp);
-  float ao = clamp(1.0 - curv * 1.1, 0.66, 1.06);
-
-  float sh = 1.0;
-  if (uShadow > 0.0) {
-    vec2 dir = normalize(uSun.xy);
-    float tanE = uSun.z / length(uSun.xy);
-    float stepPx = max(0.75, 0.75 * fp);
-    float t = 3.0 * stepPx;
-    float base = h * uExag;
-    for (int i = 0; i < 18; i++) {
-      float hh = H(rel + dir * t) * uExag;
-      float ray = base + t * uMpp * tanE + 25.0 * uExag;
-      sh = min(sh, clamp(1.0 + (ray - hh) / (t * uMpp * 0.9 + 40.0), 0.0, 1.0));
-      t *= 1.18;
-      t += stepPx;
-    }
-    sh = mix(1.0, sh, uShadow);
-  }
-  return vec2(sh, ao);
+  return clamp(1.0 - curv * 1.1, 0.66, 1.06);
 }
 
 void main() {
@@ -69,9 +53,8 @@ void main() {
   vDist = length(P);
   gl_Position = uViewProj * vec4(P, 1.0);
 
-  // Shading footprints are tied to the level spacing (fixed in the world).
-  // In the blend band, mix this level's result with the next level's rather
-  // than sliding one footprint, so a fixed point shades consistently.
-  vShade = shade(rel, h, uSpacing);
-  if (m > 0.0) vShade = mix(vShade, shade(rel, h, uSpacing * 2.0), m);
+  // AO footprint tied to the level spacing (fixed in the world). In the
+  // blend band, mix with the next level's result instead of sliding it.
+  vAO = aoAt(rel, h, uSpacing);
+  if (m > 0.0) vAO = mix(vAO, aoAt(rel, h, uSpacing * 2.0), m);
 }

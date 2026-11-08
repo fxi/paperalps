@@ -2,11 +2,12 @@
 
 in vec2 vRel;   // data px from the flyer (interpolated ground position)
 in float vDist; // metres from the eye
-in vec2 vShade; // per-vertex cast shadow, large-scale AO
+in float vAO;   // per-vertex large-scale AO
 
 // ---- view ------------------------------------------------------------------
 uniform vec2 uRes;            // framebuffer size
 uniform float uCssPx;         // framebuffer px per CSS px
+uniform float uSpacing;       // clipmap level spacing (data px), fixed in the world
 
 // ---- facet octaves ------------------------------------------------------------
 uniform ivec2 uOctBase[4];    // integer cell of the flyer per octave
@@ -184,10 +185,10 @@ void main() {
   float wsum = 0.0;
   float crease = 0.0;
   for (int o = 0; o < 4 && uFacet > 0.0; o++) {
-    // visibility thresholds in CSS px (independent of adaptive resolution);
-    // the small cutoff is subtracted, not stepped, so weights stay continuous
-    float cellCss = uOctCell[o] / (pf * uCssPx);
-    float w = max(uOctW[o] * smoothstep(2.0, 5.6, cellCss) - 0.02, 0.0);
+    // fade octaves whose cells get too small in framebuffer px (cost and
+    // aliasing); the small cutoff is subtracted, not stepped, so weights
+    // stay continuous
+    float w = max(uOctW[o] * smoothstep(2.5, 7.0, uOctCell[o] / pf) - 0.02, 0.0);
     if (w <= 0.0) continue;
     vec3 f = facet(o, rel, crAmp, pf);
     gF += f.xy * w;
@@ -198,9 +199,27 @@ void main() {
   if (wsum > 0.001) g = mix(gSmooth, gF / wsum, uFacet * clamp(wsum * 1.5, 0.0, 1.0));
   vec3 n = normalize(vec3(-g, 1.0));
 
-  // cast shadow + curvature AO come from the vertex shader (soft, large-scale)
-  float sh = vShade.x;
-  float ao = vShade.y;
+  float ao = vAO;
+
+  // ---- cast shadow, per pixel ----
+  // Step length follows the clipmap level spacing (fixed in the world, not
+  // the camera distance), so shadows don't crawl while you fly.
+  float sh = 1.0;
+  if (uShadow > 0.0) {
+    vec2 dir = normalize(uSun.xy);
+    float tanE = uSun.z / length(uSun.xy);
+    float stepPx = max(0.75, 0.75 * uSpacing);
+    float t = 3.0 * stepPx;
+    float base = h0 * uExag;
+    for (int i = 0; i < 10; i++) {
+      float hh = H(rel + dir * t) * uExag;
+      float ray = base + t * uMpp * tanE + 25.0 * uExag;
+      sh = min(sh, clamp(1.0 + (ray - hh) / (t * uMpp * 0.9 + 40.0), 0.0, 1.0));
+      t *= 1.4;
+      t += stepPx;
+    }
+    sh = mix(1.0, sh, uShadow);
+  }
 
   // ---- light ----
   vec3 L = normalize(uSun);
@@ -225,19 +244,23 @@ void main() {
   col = mix(col, col * col * (3.0 - 2.0 * col), uContrast);
   float lum = dot(col, vec3(0.299, 0.587, 0.114));
   vec3 paperCol = mix(vec3(lum), col, 0.55);
-  float fibre = vnoise(noiseP(2, rel)) * 0.5 + vnoise(noiseP(3, rel)) * 0.5;
-  paperCol *= 0.975 + 0.05 * fibre;
+  if (uInk < 0.999) {
+    float fibre = vnoise(noiseP(2, rel)) * 0.5 + vnoise(noiseP(3, rel)) * 0.5;
+    paperCol *= 0.975 + 0.05 * fibre;
+  }
 
   // ---- ink: white paint on black paper, dry-brushed along the contours ----
-  vec2 along = normalize(vec2(-g.y, g.x) + vec2(1e-4, 0.0));
-  float brush = brushAlong(noiseP(4, rel), along);
-  // soft threshold: paint coverage follows the light, the brush breaks it up
-  float thr = 0.30 + 0.34 * brush;
-  float paint = smoothstep(thr - 0.24, thr + 0.24, pow(lum, 1.2));
-  vec3 white = vec3(0.93, 0.925, 0.905) * (0.62 + 0.38 * lum);
-  vec3 inkCol = mix(vec3(0.062, 0.063, 0.068), white, paint);
-
-  vec3 outc = mix(paperCol, inkCol, uInk);
+  vec3 outc = paperCol;
+  if (uInk > 0.001) {
+    vec2 along = normalize(vec2(-g.y, g.x) + vec2(1e-4, 0.0));
+    float brush = brushAlong(noiseP(4, rel), along);
+    // soft threshold: paint coverage follows the light, the brush breaks it up
+    float thr = 0.30 + 0.34 * brush;
+    float paint = smoothstep(thr - 0.24, thr + 0.24, pow(lum, 1.2));
+    vec3 white = vec3(0.93, 0.925, 0.905) * (0.62 + 0.38 * lum);
+    vec3 inkCol = mix(vec3(0.062, 0.063, 0.068), white, paint);
+    outc = mix(paperCol, inkCol, uInk);
+  }
 
   // valley mist: pale haze in both modes (moonlit on black paper)
   if (uFog > 0.0) {

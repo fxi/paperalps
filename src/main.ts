@@ -56,11 +56,15 @@ const peaks = preparePeaks(rawPeaks as RawPeak[]);
 const labels = new Labels(document.getElementById('labels')!);
 const music = new Ambient();
 const art: Art = { ...DEFAULT_ART };
-if (new URLSearchParams(location.search).has('debug')) debugPanel(document.body, art);
+if (new URLSearchParams(location.search).has('debug')) {
+  debugPanel(document.body, art);
+  renderer.profile = true;
+  (window as unknown as { renderer: Renderer }).renderer = renderer;
+}
 
 const fl: Flyer = fromHash() ?? startFlyer();
 let mode3d = load('mode3d', '1') === '1';
-let inkTarget = load('ink', '0') === '1' ? 1 : 0;
+let inkTarget = load('ink', '1') === '1' ? 1 : 0;
 let ink = inkTarget;
 let tiltNow = mode3d ? art.tilt * DEG : 0;
 let dz = -1;
@@ -76,7 +80,9 @@ let pendingSince = 0;
 let shownAlt = fl.alt;
 let fade = 0;
 let fullRefill = true;
-let renderScale = Math.min(window.devicePixelRatio || 1, 1.25);
+// `?scale=1` pins the render scale (no adaptive resolution), for profiling
+const pinnedScale = Number(new URLSearchParams(location.search).get('scale')) || 0;
+let renderScale = pinnedScale || Math.min(window.devicePixelRatio || 1, 1.25);
 const maxScale = renderScale;
 let slowFrames = 0;
 let fastFrames = 0;
@@ -318,7 +324,8 @@ function frame(now: number): void {
   labels.update(now, proj, w, h, peaks, v.far * 0.6);
 
   // ---- adaptive resolution ----
-  if (dt > 0.024) slowFrames++;
+  if (pinnedScale) slowFrames = fastFrames = 0;
+  else if (dt > 0.024) slowFrames++;
   else slowFrames = Math.max(0, slowFrames - 1);
   if (dt < 0.0175) fastFrames++;
   else fastFrames = 0;

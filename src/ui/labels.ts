@@ -39,7 +39,7 @@ export class Labels {
         if (!el) {
           el = document.createElement('div');
           el.className = 'peak out';
-          el.innerHTML = `<div class="box"><span class="peak-name"></span> <span class="peak-ele"></span></div><b></b><i></i>`;
+          el.innerHTML = `<span class="peak-name"></span><span class="peak-ele"></span><i></i>`;
           el.querySelector('.peak-name')!.textContent = displayName(peak.name);
           el.querySelector('.peak-ele')!.textContent = `${peak.ele}`;
           this.layer.appendChild(el);

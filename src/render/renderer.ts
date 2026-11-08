@@ -82,6 +82,11 @@ export class Renderer {
   private emptyVao: WebGLVertexArrayObject;
   /** Index ranges: [0] full grid, [1 + ix + 2·iy] ring with its hole at offset (N/4+ix, N/4+iy). */
   private parts: { offset: number; count: number }[];
+  /** GPU time per frame (ms, smoothed) when profiling is on (`?debug`). */
+  gpuMs = NaN;
+  profile = false;
+  private timerExt: { TIME_ELAPSED_EXT: number; GPU_DISJOINT_EXT: number } | null = null;
+  private queries: WebGLQuery[] = [];
   renderScale = 1;
   cssW = 1;
   cssH = 1;
@@ -98,6 +103,7 @@ export class Renderer {
     this.near = new HeightAtlas(gl, store);
     this.far = new HeightAtlas(gl, store);
     this.emptyVao = gl.createVertexArray()!;
+    this.timerExt = gl.getExtension('EXT_disjoint_timer_query_webgl2');
     [this.meshVao, this.parts] = this.buildMesh();
   }
 
@@ -174,6 +180,12 @@ export class Renderer {
     const gl = this.gl;
     const fl = view.flyer;
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    let q: WebGLQuery | null = null;
+    if (this.profile && this.timerExt) {
+      this.readTimers();
+      q = gl.createQuery();
+      if (q) gl.beginQuery(this.timerExt.TIME_ELAPSED_EXT, q);
+    }
     const mix = (a: number[], b: number[]) => a.map((v, i) => v + (b[i] - v) * ex.ink);
     const skyTop = mix(PAPER_SKY.top, INK_SKY.top);
     const skyLow = mix(PAPER_SKY.low, INK_SKY.low);
@@ -296,6 +308,25 @@ export class Renderer {
       gl.drawElements(gl.TRIANGLES, part.count, gl.UNSIGNED_INT, part.offset);
       prev = { ox, oy };
       if (last) break;
+    }
+    if (q && this.timerExt) {
+      gl.endQuery(this.timerExt.TIME_ELAPSED_EXT);
+      this.queries.push(q);
+    }
+  }
+
+  private readTimers(): void {
+    const gl = this.gl;
+    const disjoint = gl.getParameter(this.timerExt!.GPU_DISJOINT_EXT);
+    while (this.queries.length) {
+      const q = this.queries[0];
+      if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break;
+      const ns = gl.getQueryParameter(q, gl.QUERY_RESULT) as number;
+      gl.deleteQuery(q);
+      this.queries.shift();
+      if (disjoint) continue;
+      const ms = ns / 1e6;
+      this.gpuMs = Number.isNaN(this.gpuMs) ? ms : this.gpuMs * 0.9 + ms * 0.1;
     }
   }
 }

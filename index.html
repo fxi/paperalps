@@ -3,22 +3,21 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
-    <meta name="theme-color" content="#e6e5e1" />
+    <meta name="theme-color" content="#111112" />
     <title>Paper Alps</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M2 26 12 8l5 8 4-5 9 15z' fill='%23ddd' stroke='%23222' stroke-width='2' stroke-linejoin='round'/></svg>" />
   </head>
-  <body>
+  <body class="ink">
     <canvas id="terrain" aria-label="The Alps rendered as folded paper"></canvas>
     <div id="labels" aria-hidden="true"></div>
     <div id="zone-left" class="zone zone-left" aria-hidden="true"></div>
     <div id="zone-right" class="zone zone-right" aria-hidden="true"></div>
 
     <div id="hud">
-      <div class="topleft">
       <div class="readout">
-        <div class="box"><span>ALT</span> <span id="alt-value">····</span></div>
+        <div class="alt-box"><span>ALT</span> <span id="alt-value">····</span></div>
         <div id="gnd" class="sub"></div>
-        <div id="coord" class="box"></div>
+        <div id="coord" class="sub"></div>
       </div>
 
       <div class="toolbar">
@@ -30,7 +29,6 @@
         <button id="inkmode" class="chip" title="Paper (I)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" /></svg>
         </button>
-      </div>
       </div>
 
       <div class="topright">

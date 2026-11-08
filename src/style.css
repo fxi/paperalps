@@ -59,25 +59,13 @@ html, body {
 #hud > * { pointer-events: auto; }
 
 /* ---- readout ---- */
-.topleft {
+.readout {
   position: absolute;
   top: calc(env(safe-area-inset-top, 0px) + 20px);
   left: var(--gap);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 8px;
   pointer-events: none !important;
 }
-.readout {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  pointer-events: none;
-}
-/* The boxed HUD style: ALT, coordinates and peak labels */
-.box {
+.alt-box {
   display: inline-block;
   border: 1.5px solid var(--ink);
   padding: 6px 10px 5px;
@@ -89,6 +77,7 @@ html, body {
   font-variant-numeric: tabular-nums;
 }
 .sub {
+  margin-top: 6px;
   color: var(--ink-soft);
   white-space: pre;
   font-variant-numeric: tabular-nums;
@@ -96,9 +85,11 @@ html, body {
 
 /* ---- toolbar chips ---- */
 .toolbar {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 104px);
+  left: var(--gap);
   display: flex;
   gap: 8px;
-  pointer-events: auto;
 }
 .chip {
   width: 34px;
@@ -195,33 +186,25 @@ html, body {
   opacity: var(--fade, 1);
   transition: opacity 0.6s ease;
 }
-/* marker on the summit, a short leader, and the boxed label above */
 .peak i {
   position: absolute;
-  left: -4.5px;
-  top: -4.5px;
-  width: 9px;
-  height: 9px;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
   border: 1.5px solid var(--ink);
   border-radius: 50%;
-  background: var(--hud-bg);
+  background: var(--halo);
 }
-.peak b {
-  position: absolute;
-  left: -0.75px;
-  bottom: 4px;
-  width: 1.5px;
-  height: 12px;
-  background: var(--ink);
-}
-.peak .box {
+.peak-name, .peak-ele {
   position: absolute;
   left: 0;
-  bottom: 16px;
   transform: translateX(-50%);
   white-space: nowrap;
+  text-shadow: 0 0 3px var(--halo), 0 0 8px var(--halo);
 }
-.peak-ele { color: var(--ink-soft); font-weight: 400; }
+.peak-name { bottom: 9px; font-weight: 500; letter-spacing: 0.12em; }
+.peak-ele { top: 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 .peak.out { opacity: 0; }
 
 /* ---- intro veil ---- */
