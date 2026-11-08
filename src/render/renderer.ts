@@ -40,7 +40,7 @@ export const DEFAULT_ART: Art = {
   sharp: 6,
   expo: 1.14,
   contrast: 0.34,
-  tilt: 62,
+  tilt: 75,
 };
 
 /** Rings (tiles per side) for the near (dz) and far (dz-3) height atlases. */
@@ -196,9 +196,26 @@ export class Renderer {
     gl.bindVertexArray(this.emptyVao);
     const us = this.us;
     gl.uniform2f(us('uRes'), this.canvas.width, this.canvas.height);
+    // horizon line from two far points either side of the heading (tilts with roll)
     const hp = view.basis.heading;
-    const horizon = projectY(view, hp[0] * 1e6, hp[1] * 1e6, 0);
-    gl.uniform1f(us('uHorizon'), horizon * this.renderScale);
+    const a = projectXY(view, hp[0] * 1e6 - hp[1] * 1e5, hp[1] * 1e6 + hp[0] * 1e5, 0);
+    const b = projectXY(view, hp[0] * 1e6 + hp[1] * 1e5, hp[1] * 1e6 - hp[0] * 1e5, 0);
+    let hx = 0;
+    let hy = -1e5;
+    let nx = 0;
+    let ny = -1;
+    if (a && b) {
+      const dx = b[0] - a[0];
+      const dy = b[1] - a[1];
+      const l = Math.hypot(dx, dy) || 1;
+      hx = (a[0] + b[0]) / 2;
+      hy = (a[1] + b[1]) / 2;
+      nx = dy / l;
+      ny = -dx / l;
+    }
+    const s = this.renderScale;
+    gl.uniform2f(us('uHorizonPt'), hx * s, hy * s);
+    gl.uniform2f(us('uHorizonN'), nx, ny);
     gl.uniform3fv(us('uSkyTop'), skyTop);
     gl.uniform3fv(us('uSkyLow'), skyLow);
     gl.uniform1f(us('uTime'), ex.time);
@@ -338,11 +355,12 @@ function setCam(gl: WebGL2RenderingContext, li: WebGLUniformLocation | null, lf:
   gl.uniform2f(lf, x - ix, y - iy);
 }
 
-/** Screen y (CSS px) of a local point, extrapolating behind/above the view. */
-function projectY(v: View, e: number, n: number, z: number): number {
+/** Screen x, y (CSS px) of a local point, extrapolating outside the view; null if behind. */
+function projectXY(v: View, e: number, n: number, z: number): [number, number] | null {
   const m = v.viewProj;
+  const cx = m[0] * e + m[4] * n + m[8] * z + m[12];
   const cy = m[1] * e + m[5] * n + m[9] * z + m[13];
   const cw = m[3] * e + m[7] * n + m[11] * z + m[15];
-  if (cw <= 1e-6) return -1e5; // horizon behind (looking straight down)
-  return (1 - (cy / cw * 0.5 + 0.5)) * v.cssH;
+  if (cw <= 1e-6) return null; // horizon behind (looking straight down)
+  return [(cx / cw * 0.5 + 0.5) * v.cssW, (1 - (cy / cw * 0.5 + 0.5)) * v.cssH];
 }

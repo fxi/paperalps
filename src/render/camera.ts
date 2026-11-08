@@ -11,6 +11,7 @@ export interface Flyer {
   alt: number; // metres above sea level
   yaw: number; // radians, 0 = north, clockwise positive
   tilt: number; // radians from nadir, 0 = straight down
+  roll?: number; // radians about the view axis, positive = right side down
 }
 
 export const FOVY = (48 * Math.PI) / 180;
@@ -25,20 +26,26 @@ export interface Basis {
   heading: Vec3; // horizontal forward
 }
 
-export function basis(yaw: number, tilt: number): Basis {
+export function basis(yaw: number, tilt: number, roll = 0): Basis {
   const sy = Math.sin(yaw);
   const cy = Math.cos(yaw);
   const st = Math.sin(tilt);
   const ct = Math.cos(tilt);
   const heading: Vec3 = [sy, cy, 0];
-  const right: Vec3 = [cy, -sy, 0];
+  const r0: Vec3 = [cy, -sy, 0];
   const fwd: Vec3 = [st * sy, st * cy, -ct];
   // up = right × fwd
-  const up: Vec3 = [
-    right[1] * fwd[2] - right[2] * fwd[1],
-    right[2] * fwd[0] - right[0] * fwd[2],
-    right[0] * fwd[1] - right[1] * fwd[0],
+  const u0: Vec3 = [
+    r0[1] * fwd[2] - r0[2] * fwd[1],
+    r0[2] * fwd[0] - r0[0] * fwd[2],
+    r0[0] * fwd[1] - r0[1] * fwd[0],
   ];
+  if (!roll) return { right: r0, up: u0, fwd, heading };
+  // bank about the view axis: positive roll dips the right side
+  const sr = Math.sin(roll);
+  const cr = Math.cos(roll);
+  const right: Vec3 = [r0[0] * cr - u0[0] * sr, r0[1] * cr - u0[1] * sr, r0[2] * cr - u0[2] * sr];
+  const up: Vec3 = [u0[0] * cr + r0[0] * sr, u0[1] * cr + r0[1] * sr, u0[2] * cr + r0[2] * sr];
   return { right, up, fwd, heading };
 }
 
@@ -110,7 +117,7 @@ export function makeView(
   heightAt: (e: number, n: number) => number,
   ground: number,
 ): View {
-  const b = basis(fl.yaw, fl.tilt);
+  const b = basis(fl.yaw, fl.tilt, fl.roll ?? 0);
   const agl = Math.max(30, fl.alt - ground);
   const focusDist = focusDistance(fl, b, lift, heightAt, ground);
   const focusE = b.fwd[0] * focusDist;

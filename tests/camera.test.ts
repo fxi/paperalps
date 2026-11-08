@@ -21,6 +21,21 @@ describe('camera basis', () => {
     }
   });
 
+  it('stays orthonormal with roll and keeps the view axis', () => {
+    const dot = (a: number[], c: number[]) => a[0] * c[0] + a[1] * c[1] + a[2] * c[2];
+    for (const roll of [-0.6, 0.3, 1]) {
+      const b = basis(0.8, 1.0, roll);
+      const b0 = basis(0.8, 1.0);
+      expect(dot(b.right, b.up)).toBeCloseTo(0, 9);
+      expect(dot(b.right, b.right)).toBeCloseTo(1, 9);
+      expect(dot(b.up, b.fwd)).toBeCloseTo(0, 9);
+      expect(b.fwd).toEqual(b0.fwd);
+    }
+    // positive roll: right side dips
+    expect(basis(0, 1.0, 0.4).right[2]).toBeLessThan(0);
+    expect(basis(0.8, 1.0, 0)).toEqual(basis(0.8, 1.0));
+  });
+
   it('top-down, north-up: north is screen-up, east is screen-right', () => {
     const b = basis(0, 0);
     expect(b.up[1]).toBeCloseTo(1);

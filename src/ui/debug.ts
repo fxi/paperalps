@@ -3,7 +3,7 @@ import type { Art } from '../render/renderer';
 const RANGES: Record<keyof Art, [number, number, number]> = {
   exag: [0.5, 8, 0.05],
   lift: [0.5, 4, 0.05],
-  tilt: [0, 75, 1],
+  tilt: [0, 85, 1],
   crumple: [0, 2, 0.01],
   facet: [0, 1, 0.01],
   cell: [4, 40, 0.5],
