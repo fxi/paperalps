@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#e6e5e1" />
+    <title>Paper Alps</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><path d='M2 26 12 8l5 8 4-5 9 15z' fill='%23ddd' stroke='%23222' stroke-width='2' stroke-linejoin='round'/></svg>" />
+  </head>
+  <body>
+    <canvas id="terrain" aria-label="The Alps rendered as folded paper"></canvas>
+    <div id="labels" aria-hidden="true"></div>
+    <div id="zone-left" class="zone zone-left" aria-hidden="true"></div>
+    <div id="zone-right" class="zone zone-right" aria-hidden="true"></div>
+
+    <div id="hud">
+      <div class="topleft">
+      <div class="readout">
+        <div class="box"><span>ALT</span> <span id="alt-value">····</span></div>
+        <div id="gnd" class="sub"></div>
+        <div id="coord" class="box"></div>
+      </div>
+
+      <div class="toolbar">
+        <button id="music" class="chip" aria-pressed="false" aria-label="Play music" title="Music (M)">
+          <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+          <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" /><rect x="13.9" y="5.5" width="3.6" height="13" /></svg>
+        </button>
+        <button id="view3d" class="chip" title="View (T)">3D</button>
+        <button id="inkmode" class="chip" title="Paper (I)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" /></svg>
+        </button>
+      </div>
+      </div>
+
+      <div class="topright">
+        <div class="north" aria-hidden="true">
+          <span>N</span>
+          <svg viewBox="0 0 20 60"><path d="M10 2 L16 18 L10 15 L4 18 Z" /><line x1="10" y1="15" x2="10" y2="58" /><line x1="3" y1="40" x2="17" y2="40" /></svg>
+        </div>
+        <div id="mapbox" class="mapbox"></div>
+      </div>
+
+      <div class="hint">w/s fly · a/d turn · ↑↓ climb · ←→ strafe · t view · i ink · m music</div>
+    </div>
+
+    <div id="veil">
+      <div class="veil-title">PAPER ALPS</div>
+      <div class="veil-sub">unfolding terrain…</div>
+    </div>
+
+    <footer class="credits">
+      DEM <a href="https://mapterhorn.com" target="_blank" rel="noopener">Mapterhorn</a> · peaks © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+    </footer>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
