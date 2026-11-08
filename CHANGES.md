@@ -2,6 +2,25 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## Rename to paperalps, CI and GitHub Pages
+
+- **Commit:** `ci: rename to paperalps, add vitest config and github pages workflow`
+- **Date:** 2026-11-08
+- **Who:** fxi (name, remote `git@github.com:fxi/paperalps.git`, Pages set to
+  GitHub Actions) · Claude (implementation and sub-path check)
+- **Why:** "shadegl" was a placeholder name. Publish the app at
+  https://fxi.io/paperalps/ with checks on every push.
+- **What:**
+  - Package, README title, peaks script user-agent and test temp prefix
+    renamed to `paperalps`. The local folder name is unchanged.
+  - `vitest.config.ts` (node env, `tests/**/*.test.ts`); `vite.config.ts`
+    keeps only `base: './'` for sub-path hosting.
+  - `.github/workflows/ci.yml`: Node 24, `npm ci`, type-check, tests and
+    build on push/PR; on `main`, upload `dist/` and deploy with
+    `actions/deploy-pages`.
+- **Notes:** the production build was verified locally under a
+  `/paperalps/` prefix: assets, fonts, tiles and labels all load.
+
 ## Commit rules and change log
 
 - **Commit:** `docs: add agent commit rules and change log`

@@ -40,6 +40,10 @@ earlier commits only (a commit can't contain its own hash).
 - Commands: `npm run dev`, `npm test`, `npm run test:net` (live tile check,
   needs `dwebp`), `npm run build`, `npm run peaks` (refresh OSM peaks).
 - Before committing: `npx tsc --noEmit`, `npm test`, `npm run build` must pass.
+- CI (`.github/workflows/ci.yml`) runs the same checks on every push and PR.
+  A push to `main` also deploys `dist/` to GitHub Pages (source: GitHub
+  Actions) at https://fxi.io/paperalps/. Vite uses `base: './'`, so the build
+  works under that sub-path. Vitest config lives in `vitest.config.ts`.
 - Debug: `?debug` shows art sliders and enables the GPU timer
   (`window.renderer.gpuMs`); `?scale=1.25` pins the render scale (disables
   adaptive resolution) for fair profiling.

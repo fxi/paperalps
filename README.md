@@ -1,4 +1,6 @@
-# Paper Alps (shadegl)
+# Paper Alps
+
+Live: **https://fxi.io/paperalps/**
 
 Explore the real Alps rendered as crumpled paper. Elevation comes from
 [Mapterhorn](https://mapterhorn.com) DEM tiles, decoded in the browser, then

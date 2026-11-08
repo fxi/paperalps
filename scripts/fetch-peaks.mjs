@@ -13,7 +13,7 @@ out;`;
 
 const res = await fetch('https://overpass-api.de/api/interpreter', {
   method: 'POST',
-  headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'shadegl-peaks/0.1' },
+  headers: { 'content-type': 'application/x-www-form-urlencoded', 'user-agent': 'paperalps-peaks/0.1' },
   body: 'data=' + encodeURIComponent(query),
 });
 if (!res.ok) throw new Error(`Overpass ${res.status}: ${await res.text()}`);

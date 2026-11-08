@@ -13,7 +13,7 @@ run('mapterhorn tile (network)', () => {
   it('Matterhorn summit ≈ 4478 m', async () => {
     const res = await fetch('https://tiles.mapterhorn.com/12/2135/1457.webp');
     expect(res.ok).toBe(true);
-    const dir = mkdtempSync(join(tmpdir(), 'shadegl-'));
+    const dir = mkdtempSync(join(tmpdir(), 'paperalps-'));
     writeFileSync(join(dir, 't.webp'), Buffer.from(await res.arrayBuffer()));
     execFileSync('dwebp', ['-pam', join(dir, 't.webp'), '-o', join(dir, 't.pam')], { stdio: 'ignore' });
     const pam = readFileSync(join(dir, 't.pam'));
