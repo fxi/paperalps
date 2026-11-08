@@ -8,6 +8,7 @@ import { displayName, placePeaks, type Peak, type Projector } from './peaks';
 export class Labels {
   private els = new Map<number, HTMLElement>();
   private peakOf = new Map<number, Peak>();
+  private timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
   private lastPlace = 0;
 
   constructor(private layer: HTMLElement) {}
@@ -16,7 +17,7 @@ export class Labels {
     if (now - this.lastPlace > 280) {
       this.lastPlace = now;
       const budget = Math.round(Math.min(14, Math.max(5, (w * h) / 65000)));
-      const avoid = [...document.querySelectorAll('.stick, .mapbox, .north, .readout, .toolbar')].map((e) => {
+      const avoid = [...document.querySelectorAll('.stick, .mapbox:not(.off), .readout, .toolbar')].map((e) => {
         const r = e.getBoundingClientRect();
         return [r.left, r.top, r.right, r.bottom] as [number, number, number, number];
       });
@@ -25,13 +26,22 @@ export class Labels {
       for (const [id, el] of this.els) {
         if (!next.has(id) && !el.classList.contains('out')) {
           el.classList.add('out');
-          setTimeout(() => {
-            if (el.classList.contains('out')) {
+          // One pending removal per element. A stale timer must never delete
+          // a newer element of the same peak from the map: that orphan would
+          // stay in the DOM, frozen where it was last placed.
+          clearTimeout(this.timers.get(el));
+          this.timers.set(
+            el,
+            setTimeout(() => {
+              this.timers.delete(el);
+              if (!el.classList.contains('out')) return;
               el.remove();
-              this.els.delete(id);
-              this.peakOf.delete(id);
-            }
-          }, 700);
+              if (this.els.get(id) === el) {
+                this.els.delete(id);
+                this.peakOf.delete(id);
+              }
+            }, 700),
+          );
         }
       }
       for (const { peak } of placed) {
@@ -46,7 +56,11 @@ export class Labels {
           this.els.set(peak.id, el);
           const e = el;
           requestAnimationFrame(() => e.classList.remove('out'));
-        } else el.classList.remove('out');
+        } else {
+          el.classList.remove('out');
+          clearTimeout(this.timers.get(el));
+          this.timers.delete(el);
+        }
         this.peakOf.set(peak.id, peak);
       }
     }
