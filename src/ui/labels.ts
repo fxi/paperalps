@@ -10,8 +10,28 @@ export class Labels {
   private peakOf = new Map<number, Peak>();
   private timers = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
   private lastPlace = 0;
+  /** The autopilot destination: always placed first, highlighted. */
+  private target: Peak | null = null;
 
-  constructor(private layer: HTMLElement) {}
+  /** `onPick` fires when a label is clicked or tapped. */
+  constructor(
+    private layer: HTMLElement,
+    onPick: (p: Peak) => void,
+  ) {
+    layer.addEventListener('click', (e) => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>('.peak');
+      const p = el && this.peakOf.get(Number(el.dataset.id));
+      if (p) onPick(p);
+    });
+  }
+
+  setTarget(p: Peak | null): void {
+    if (this.target === p) return;
+    if (this.target) this.els.get(this.target.id)?.classList.remove('target');
+    this.target = p;
+    if (p) this.els.get(p.id)?.classList.add('target');
+    this.lastPlace = 0; // re-place now so the target shows up at once
+  }
 
   update(now: number, project: Projector, w: number, h: number, peaks: Peak[], maxDist: number): void {
     if (now - this.lastPlace > 280) {
@@ -21,7 +41,7 @@ export class Labels {
         const r = e.getBoundingClientRect();
         return [r.left, r.top, r.right, r.bottom] as [number, number, number, number];
       });
-      const placed = placePeaks(peaks, project, w, h, budget, { avoid, maxDist });
+      const placed = placePeaks(peaks, project, w, h, budget, { avoid, maxDist, pinned: this.target ?? undefined });
       const next = new Set(placed.map((p) => p.peak.id));
       for (const [id, el] of this.els) {
         if (!next.has(id) && !el.classList.contains('out')) {
@@ -48,10 +68,12 @@ export class Labels {
         let el = this.els.get(peak.id);
         if (!el) {
           el = document.createElement('div');
-          el.className = 'peak out';
+          el.className = peak.kind === 'city' ? 'peak city out' : 'peak out';
+          if (peak === this.target) el.classList.add('target');
+          el.dataset.id = String(peak.id);
           el.innerHTML = `<span class="peak-name"></span><span class="peak-ele"></span><i></i>`;
           el.querySelector('.peak-name')!.textContent = displayName(peak.name);
-          el.querySelector('.peak-ele')!.textContent = `${peak.ele}`;
+          el.querySelector('.peak-ele')!.textContent = peak.kind === 'city' ? '' : `${peak.ele}`;
           this.layer.appendChild(el);
           this.els.set(peak.id, el);
           const e = el;
@@ -74,7 +96,7 @@ export class Labels {
       }
       el.style.visibility = '';
       el.style.transform = `translate3d(${s[0].toFixed(1)}px, ${s[1].toFixed(1)}px, 0)`;
-      const fade = 1 - Math.max(0, Math.min(1, (s[2] / maxDist - 0.55) / 0.45));
+      const fade = p === this.target ? 1 : 1 - Math.max(0, Math.min(1, (s[2] / maxDist - 0.55) / 0.45));
       el.style.setProperty('--fade', fade.toFixed(2));
     }
   }

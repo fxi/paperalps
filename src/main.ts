@@ -10,10 +10,12 @@ import { Stick } from './ui/joystick';
 import { Input } from './ui/input';
 import { Minimap } from './ui/minimap';
 import { Labels } from './ui/labels';
-import { preparePeaks, type RawPeak, type Peak } from './ui/peaks';
+import { preparePeaks, prepareCities, mergePlaces, type RawPeak, type RawCity, type Peak } from './ui/peaks';
+import { autopilot } from './ui/autopilot';
 import { Ambient } from './audio/ambient';
 import { debugPanel } from './ui/debug';
 import rawPeaks from './data/peaks.json';
+import rawCities from './data/cities.json';
 
 const MIN_DZ = 8;
 const MAX_DZ = 14;
@@ -59,7 +61,9 @@ const altStick = new Stick(hud, 'right', 'Pitch and roll', coarse ? zoneR : unde
 const input = new Input(canvas);
 const minimap = new Minimap(document.getElementById('mapbox')!);
 const peaks = preparePeaks(rawPeaks as RawPeak[]);
-const labels = new Labels(document.getElementById('labels')!);
+// labels: peaks and cities in one priority list (the minimap keeps peaks only)
+const places = mergePlaces(peaks, prepareCities(rawCities as RawCity[]));
+const labels = new Labels(document.getElementById('labels')!, (p) => setTarget(p));
 const music = new Ambient();
 const art: Art = { ...DEFAULT_ART };
 if (new URLSearchParams(location.search).has('debug')) {
@@ -176,6 +180,36 @@ function syncButtons(): void {
   document.body.classList.toggle('ink', inkTarget === 1);
 }
 
+// ------------------------------------------------------------- autopilot ---
+// Click / tap a label to fly there; any stick, key, drag or zoom cancels it.
+let target: Peak | null = null;
+function setTarget(p: Peak | null): void {
+  target = p;
+  labels.setTarget(p);
+  if (p) northReset = false;
+}
+
+/** Terrain metres at a Mercator point, from the coarse level (NaN if not loaded). */
+function groundAt(mx: number, my: number): number {
+  const z = dz > 0 ? dz - FAR_DROP : 9;
+  const ws = TILE * Math.pow(2, z);
+  return store.sample(z, mx * ws, my * ws);
+}
+
+/** Highest ground along the way to (te, tn), looking ~5 s ahead (at least 3 km). */
+function terrainAhead(te: number, tn: number, speed: number): number {
+  const d = Math.hypot(te, tn);
+  const reach = Math.min(d, Math.max(3000, speed * 5));
+  let hi = -Infinity;
+  for (let i = 1; i <= 8; i++) {
+    const t = (reach * i) / 8 / Math.max(1, d);
+    const [mx, my] = localToMerc(fl, te * t, tn * t);
+    const h = groundAt(mx, my);
+    if (!Number.isNaN(h)) hi = Math.max(hi, h);
+  }
+  return Number.isFinite(hi) ? hi : -Infinity;
+}
+
 // ------------------------------------------------------------------ loop ---
 let last = performance.now();
 const t0 = last;
@@ -204,13 +238,37 @@ function frame(now: number): void {
   moveStick.tick(dt);
   altStick.tick(dt);
   // left: throttle + yaw (rudder) · right: pitch + roll, aircraft style
-  const throttle = clamp1(-moveStick.value.y + input.forward());
+  let throttle = clamp1(-moveStick.value.y + input.forward());
   const rudder = clamp1(moveStick.value.x + input.turn());
-  const rollIn = clamp1(altStick.value.x + input.roll());
-  const pitchIn = clamp1(altStick.value.y + input.pitch()); // stick back (down) = nose up
+  let rollIn = clamp1(altStick.value.x + input.roll());
+  let pitchIn = clamp1(altStick.value.y + input.pitch()); // stick back (down) = nose up
 
   // horizontal speed scales with height above ground: same screen feel at any altitude
   const maxSpeed = Math.max(60, agl * 0.9 + 250);
+
+  // autopilot holds the sticks until the pilot touches anything
+  if (target) {
+    const manual = Math.max(Math.abs(throttle), Math.abs(rudder), Math.abs(rollIn), Math.abs(pitchIn));
+    if (manual > 0.05 || input.dragX || input.dragY || input.zoomDelta) setTarget(null);
+  }
+  if (target) {
+    const [te, tn] = mercToLocal(fl, target.mx, target.my);
+    const tEle = Number.isNaN(target.ele) ? groundAt(target.mx, target.my) : target.ele;
+    const cmd = autopilot({
+      e: te,
+      n: tn,
+      yaw: fl.yaw,
+      alt: fl.alt,
+      targetEle: Number.isNaN(tEle) ? gnd : tEle,
+      terrainAhead: terrainAhead(te, tn, maxSpeed * Math.max(0, airspeed)),
+      airspeed,
+      maxSpeed,
+    });
+    throttle = cmd.throttle;
+    rollIn = cmd.roll;
+    pitchIn = cmd.pitch;
+    if (cmd.arrived) setTarget(null);
+  }
   const sy = Math.sin(fl.yaw);
   const cy = Math.cos(fl.yaw);
   // airspeed as a fraction of maxSpeed; reverse is a slow back-off
@@ -392,10 +450,16 @@ function frame(now: number): void {
   minimap.draw(now, fl, dz, mapMetres, store, peaks);
   const v = view;
   const proj = (p: Peak) => {
+    if (Number.isNaN(p.ele)) {
+      // cities: read the elevation from the terrain once it is loaded, then keep it
+      const g = groundAt(p.mx, p.my);
+      if (Number.isNaN(g)) return null;
+      p.ele = Math.round(g);
+    }
     const [e, n] = mercToLocal(fl, p.mx, p.my);
     return project(v, e, n, p.ele);
   };
-  labels.update(now, proj, w, h, peaks, v.far * 0.6);
+  labels.update(now, proj, w, h, places, v.far * 0.6);
 
   // ---- adaptive resolution ----
   if (pinnedScale) slowFrames = fastFrames = 0;

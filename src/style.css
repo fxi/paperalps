@@ -204,7 +204,17 @@ html, body {
 }
 .peak-name { bottom: 7px; }
 .peak-ele { top: 6px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
-.peak.out { opacity: 0; }
+.peak.out { opacity: 0; pointer-events: none !important; }
+/* click / tap a label to fly there: the name and a generous dot area are hit targets */
+.peak-name, .peak i { pointer-events: auto; cursor: pointer; }
+.peak i::before { content: ''; position: absolute; inset: -12px; border-radius: 50%; }
+.peak:hover .peak-name { color: var(--ink); }
+/* cities: square marker, no elevation */
+.peak.city i { border-radius: 0; }
+.peak.city .peak-ele { display: none; }
+/* autopilot destination */
+.peak.target .peak-name { color: var(--ink); }
+.peak.target i { border-color: var(--ink); background: var(--ink); }
 
 /* ---- intro veil ---- */
 #veil {
