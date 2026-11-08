@@ -65,32 +65,29 @@ html, body {
   left: var(--gap);
   pointer-events: none !important;
 }
-.alt-box {
-  display: inline-block;
-  border: 1.5px solid var(--ink);
-  padding: 6px 10px 5px;
-  font-weight: 500;
-  letter-spacing: 0.14em;
-  background: var(--hud-bg);
-  backdrop-filter: blur(2px);
-  white-space: pre;
-  font-variant-numeric: tabular-nums;
-}
-.sub {
-  margin-top: 6px;
+.alt-box, .sub {
   color: var(--ink-soft);
   white-space: pre;
   font-variant-numeric: tabular-nums;
 }
+.sub { margin-top: 6px; }
 
-/* ---- toolbar chips ---- */
+/* ---- toolbar: bare icons under the readout ---- */
 .toolbar {
   position: absolute;
-  top: calc(env(safe-area-inset-top, 0px) + 104px);
-  left: var(--gap);
+  top: calc(env(safe-area-inset-top, 0px) + 94px);
+  left: calc(var(--gap) - 8px);
   display: flex;
   gap: 8px;
 }
+.toolbar .chip {
+  border: 0;
+  background: none;
+  backdrop-filter: none;
+  color: var(--ink-soft);
+  transition: color 0.2s, transform 0.15s ease;
+}
+.toolbar .chip:hover { color: var(--ink); }
 .chip {
   width: 34px;
   height: 34px;
@@ -110,9 +107,9 @@ html, body {
 .chip:active { transform: scale(0.95); }
 .chip:focus-visible { outline: 1.5px dashed var(--ink); outline-offset: 3px; }
 .chip svg { width: 18px; height: 18px; fill: currentColor; grid-area: 1 / 1; }
-#music .i-pause, #music.on .i-play { display: none; }
-#music.on .i-pause { display: block; }
-#music.on { background: var(--ink); color: var(--paper); }
+.sound .i-on, .sound.on .i-off { display: none; }
+.sound.on .i-on { display: block; }
+.chip svg path[fill='none'] { fill: none; }
 
 /* ---- north + minimap ---- */
 .topright {
@@ -186,25 +183,26 @@ html, body {
   opacity: var(--fade, 1);
   transition: opacity 0.6s ease;
 }
+/* quiet, like the position readout: soft ink, regular weight, small dot */
 .peak i {
   position: absolute;
-  left: -4px;
-  top: -4px;
-  width: 8px;
-  height: 8px;
-  border: 1.5px solid var(--ink);
+  left: -2.5px;
+  top: -2.5px;
+  width: 5px;
+  height: 5px;
+  border: 1px solid var(--ink-soft);
   border-radius: 50%;
-  background: var(--halo);
 }
 .peak-name, .peak-ele {
   position: absolute;
   left: 0;
   transform: translateX(-50%);
   white-space: nowrap;
-  text-shadow: 0 0 3px var(--halo), 0 0 8px var(--halo);
+  color: var(--ink-soft);
+  text-shadow: 0 0 3px var(--halo), 0 0 6px var(--halo);
 }
-.peak-name { bottom: 9px; font-weight: 500; letter-spacing: 0.12em; }
-.peak-ele { top: 8px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.peak-name { bottom: 7px; }
+.peak-ele { top: 6px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .peak.out { opacity: 0; }
 
 /* ---- intro veil ---- */
@@ -216,12 +214,38 @@ html, body {
   text-align: center;
   background: var(--paper);
   transition: opacity 1.6s ease;
-  pointer-events: none;
+  z-index: 20;
 }
-#veil.gone { opacity: 0; }
+#veil.gone { opacity: 0; pointer-events: none; }
+.veil-actions {
+  margin-top: 28px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  align-items: center;
+}
+.enter {
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 12px;
+  border: 1.5px solid var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+  font: 500 var(--fs) var(--mono);
+  letter-spacing: 0.3em;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.enter svg { width: 16px; height: 16px; fill: currentColor; }
+.enter:hover { transform: translateY(-1px); }
+.enter:active { transform: scale(0.97); }
+.enter:focus-visible { outline: 1.5px dashed var(--ink); outline-offset: 3px; }
 .veil-title { font-weight: 500; letter-spacing: 0.6em; padding-left: 0.6em; }
 .veil-sub { margin-top: 12px; color: var(--ink-soft); animation: breathe 2.4s ease-in-out infinite; }
 @keyframes breathe { 50% { opacity: 0.35; } }
+#veil.ready .veil-sub { animation: none; }
 
 .credits {
   position: fixed;

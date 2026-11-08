@@ -21,6 +21,8 @@ const MIN_AGL = 120;
 const MAX_ALT = 9000;
 const BOUNDS = { w: 4.5, e: 17.0, s: 43.4, n: 48.4 };
 const DEG = Math.PI / 180;
+const MAX_BANK = 35 * DEG;
+const MAX_PITCH = 25 * DEG;
 // North-east of Zermatt, looking south-west at the Matterhorn
 const START = { lat: 46.035, lon: 7.79, alt: 5200, yaw: 232 };
 
@@ -32,9 +34,10 @@ const gndEl = document.getElementById('gnd')!;
 const coordEl = document.getElementById('coord')!;
 const northEl = document.querySelector('.north svg') as SVGElement;
 const musicBtn = document.getElementById('music') as HTMLButtonElement;
-const viewBtn = document.getElementById('view3d') as HTMLButtonElement;
 const inkBtn = document.getElementById('inkmode') as HTMLButtonElement;
 const veil = document.getElementById('veil')!;
+const enterBtn = document.getElementById('enter') as HTMLButtonElement;
+const veilSoundBtn = document.getElementById('veil-sound') as HTMLButtonElement;
 
 const store = new TileStore(220);
 let renderer: Renderer;
@@ -47,9 +50,9 @@ try {
 const coarse = matchMedia('(pointer: coarse)').matches;
 const zoneL = document.getElementById('zone-left')!;
 const zoneR = document.getElementById('zone-right')!;
-// left: forward/back + turn · right: climb/descend + strafe
-const moveStick = new Stick(hud, 'left', 'Forward, back and turn', coarse ? zoneL : undefined);
-const altStick = new Stick(hud, 'right', 'Climb, descend and strafe', coarse ? zoneR : undefined);
+// left: throttle + yaw · right: pitch + roll (aircraft style: pull back to climb)
+const moveStick = new Stick(hud, 'left', 'Throttle and yaw', coarse ? zoneL : undefined);
+const altStick = new Stick(hud, 'right', 'Pitch and roll', coarse ? zoneR : undefined);
 const input = new Input(canvas);
 const minimap = new Minimap(document.getElementById('mapbox')!);
 const peaks = preparePeaks(rawPeaks as RawPeak[]);
@@ -63,14 +66,19 @@ if (new URLSearchParams(location.search).has('debug')) {
 }
 
 const fl: Flyer = fromHash() ?? startFlyer();
-let mode3d = load('mode3d', '1') === '1';
+let mode3d = true;
 let inkTarget = load('ink', '1') === '1' ? 1 : 0;
 let ink = inkTarget;
+let soundOn = load('sound', '1') === '1';
+let entered = false; // the splash was dismissed (a user gesture: audio may start)
 let tiltNow = mode3d ? art.tilt * DEG : 0;
 let dz = -1;
 let vel = { e: 0, n: 0 }; // m/s
 let climb = 0; // m/s
 let yawRate = 0;
+let airspeed = 0; // fraction of the altitude-scaled max speed
+let bank = 0; // radians, positive = right wing down
+let pitch = 0; // radians, positive = nose up
 let ground = NaN;
 let slowGround = NaN; // heavily smoothed ground: drives the facet scale
 let ezStable = NaN;
@@ -102,17 +110,27 @@ window.addEventListener('hashchange', () => {
   vel = { e: 0, n: 0 };
 });
 
-musicBtn.addEventListener('click', async () => {
-  musicBtn.disabled = true;
-  const on = await music.toggle();
-  musicBtn.disabled = false;
-  syncButtons(on);
-});
-viewBtn.addEventListener('click', () => {
-  mode3d = !mode3d;
-  save('mode3d', mode3d ? '1' : '0');
+// Sound is a saved preference. Audio can only start from a user gesture, so
+// the splash "fly" button is where it first starts.
+async function setSound(on: boolean): Promise<void> {
+  soundOn = on;
+  save('sound', on ? '1' : '0');
   syncButtons();
-});
+  if (!entered) return;
+  if (on) await music.play();
+  else await music.pause();
+}
+musicBtn.addEventListener('click', () => void setSound(!soundOn));
+veilSoundBtn.addEventListener('click', () => void setSound(!soundOn));
+function enter(): void {
+  if (entered) return;
+  entered = true;
+  enterBtn.disabled = true;
+  if (soundOn) void music.play();
+  canvas.focus?.();
+}
+enterBtn.addEventListener('click', enter);
+enterBtn.focus();
 inkBtn.addEventListener('click', () => {
   inkTarget = inkTarget ? 0 : 1;
   save('ink', String(inkTarget));
@@ -120,17 +138,21 @@ inkBtn.addEventListener('click', () => {
 });
 window.addEventListener('keydown', (e) => {
   if (e.target instanceof HTMLInputElement) return;
+  if (!entered) {
+    if (e.key === 'Enter' && e.target === document.body) enter();
+    return;
+  }
   if (e.key === 'm') musicBtn.click();
-  if (e.key === 't') viewBtn.click();
+  if (e.key === 't') mode3d = !mode3d; // top-down view: keyboard only, not saved
   if (e.key === 'i') inkBtn.click();
 });
 
-function syncButtons(musicOn = music.playing): void {
-  musicBtn.classList.toggle('on', musicOn);
-  musicBtn.setAttribute('aria-pressed', String(musicOn));
-  musicBtn.setAttribute('aria-label', musicOn ? 'Pause music' : 'Play music');
-  viewBtn.textContent = mode3d ? '3D' : '2D';
-  viewBtn.setAttribute('aria-label', mode3d ? 'Switch to top-down view' : 'Switch to tilted view');
+function syncButtons(): void {
+  for (const b of [musicBtn, veilSoundBtn]) {
+    b.classList.toggle('on', soundOn);
+    b.setAttribute('aria-pressed', String(soundOn));
+    b.setAttribute('aria-label', soundOn ? 'Turn sound off' : 'Turn sound on');
+  }
   inkBtn.setAttribute('aria-label', inkTarget ? 'Switch to white paper' : 'Switch to black paper');
   document.body.classList.toggle('ink', inkTarget === 1);
 }
@@ -162,21 +184,26 @@ function frame(now: number): void {
   // ---- controls ----
   moveStick.tick(dt);
   altStick.tick(dt);
-  const fwd = clamp1(-moveStick.value.y + input.forward());
-  const turn = clamp1(moveStick.value.x + input.turn());
-  const mvx = clamp1(altStick.value.x + input.strafe()); // lateral
-  const mvy = -fwd; // screen-down convention for the velocity maths below
-  const lift = clamp1(-altStick.value.y + input.climb());
+  // left: throttle + yaw (rudder) · right: pitch + roll, aircraft style
+  const throttle = clamp1(-moveStick.value.y + input.forward());
+  const rudder = clamp1(moveStick.value.x + input.turn());
+  const rollIn = clamp1(altStick.value.x + input.roll());
+  const pitchIn = clamp1(altStick.value.y + input.pitch()); // stick back (down) = nose up
 
   // horizontal speed scales with height above ground: same screen feel at any altitude
   const maxSpeed = Math.max(60, agl * 0.9 + 250);
   const sy = Math.sin(fl.yaw);
   const cy = Math.cos(fl.yaw);
-  const te = (mvx * cy + -mvy * sy) * maxSpeed;
-  const tn = (-mvx * sy + -mvy * cy) * maxSpeed;
-  const kMove = 1 - Math.exp(-dt * (Math.hypot(mvx, mvy) > 0.01 ? 2.4 : 1.5));
-  vel.e += (te - vel.e) * kMove;
-  vel.n += (tn - vel.n) * kMove;
+  // airspeed as a fraction of maxSpeed; reverse is a slow back-off
+  const speedTarget = throttle >= 0 ? throttle : throttle * 0.4;
+  airspeed += (speedTarget - airspeed) * (1 - Math.exp(-dt * (Math.abs(throttle) > 0.01 ? 1.4 : 0.8)));
+
+  // bank and pitch ease towards the stick and level out when released
+  bank += (rollIn * MAX_BANK - bank) * (1 - Math.exp(-dt * 3));
+  pitch += (pitchIn * MAX_PITCH - pitch) * (1 - Math.exp(-dt * 2.5));
+
+  vel.e = sy * airspeed * maxSpeed;
+  vel.n = cy * airspeed * maxSpeed;
 
   // drag (mouse / single touch outside the stick zones): pan the ground
   if (input.dragX || input.dragY) {
@@ -186,14 +213,19 @@ function frame(now: number): void {
     input.dragX = input.dragY = 0;
     moveLocal(dx * cy + dy * sy, -dx * sy + dy * cy);
     vel = { e: 0, n: 0 };
+    airspeed = 0;
   }
   moveLocal(vel.e * dt, vel.n * dt);
 
-  yawRate += (turn * 1.1 - yawRate) * (1 - Math.exp(-dt * 4));
+  // rudder yaws directly; banking makes a coordinated turn
+  const turnRate = rudder * 0.75 + Math.sin(bank) * 1.6;
+  yawRate += (turnRate - yawRate) * (1 - Math.exp(-dt * 4));
   fl.yaw = wrapAngle(fl.yaw + yawRate * dt);
 
+  // pitch trades airspeed for climb; a small direct term still works when hovering
   const climbMax = Math.min(700, Math.max(180, agl * 0.3));
-  climb += (lift * climbMax - climb) * (1 - Math.exp(-dt * 3));
+  const climbTarget = Math.max(-climbMax, Math.min(climbMax, Math.sin(pitch) * airspeed * maxSpeed + pitchIn * 0.25 * climbMax));
+  climb += (climbTarget - climb) * (1 - Math.exp(-dt * 3));
   fl.alt += climb * dt;
   if (input.zoomDelta) {
     // wheel / pinch: multiplicative height above ground
@@ -209,7 +241,11 @@ function frame(now: number): void {
   // tilt eases between top-down and the 3D angle
   const tiltTarget = mode3d ? art.tilt * DEG : 0;
   tiltNow += (tiltTarget - tiltNow) * (1 - Math.exp(-dt * 3));
-  fl.tilt = tiltNow;
+  // the nose leads the view: pitch up looks towards the horizon, bank rolls it
+  // (both faded out in top-down mode)
+  const m3 = Math.max(0, Math.min(1, tiltNow / (art.tilt * DEG || 1)));
+  fl.tilt = Math.max(0, Math.min(86 * DEG, tiltNow + pitch * 0.5 * m3));
+  fl.roll = bank * (0.3 + 0.7 * m3);
   ink += (inkTarget - ink) * (1 - Math.exp(-dt * 5));
 
   // ---- view ----
@@ -225,7 +261,8 @@ function frame(now: number): void {
   // smoothed ground on a flat-earth view instead.
   {
     const aglS = Math.max(MIN_AGL * 3, fl.alt - (Number.isNaN(slowGround) ? gnd : slowGround)) * art.lift;
-    const dFlat = aglS / Math.max(0.17, Math.cos(fl.tilt));
+    // base tilt, not the pitch-led one: nodding the nose must not rescale the folds
+    const dFlat = aglS / Math.max(0.17, Math.cos(tiltNow));
     const mPerCss = (2 * dFlat * Math.tan(FOVY / 2)) / h;
     const ez = Math.log2((EARTH_CIRC * Math.cos(mercLat(fl.my))) / (TILE * mPerCss));
     // Latch: cruising over relief must not slowly drift the folds. The target
@@ -305,12 +342,21 @@ function frame(now: number): void {
   northEl.style.transform = `rotate(${-fl.yaw}rad)`;
 
   const speed = Math.hypot(vel.e, vel.n) / maxSpeed;
-  music.setSteering({ altitude: fl.alt - gnd + 600, speed: Math.min(1, speed) });
+  music.setSteering({
+    altitude: fl.alt - gnd + 600,
+    speed: Math.min(1, speed),
+    vario: climb / climbMax, // a sonic variometer: pings up, growl down
+    bank: bank / MAX_BANK,
+  });
 
   // ---- draw ----
   const ready = renderer.far.complete(farR[0] + 2, farR[1] + 2, farR[0] + 2, farR[1] + 2);
   if (ready || fade > 0) fade = Math.min(1, fade + dt * 0.7);
-  if (fade > 0.05) veil.classList.add('gone');
+  if (ready && !veil.classList.contains('ready')) {
+    veil.classList.add('ready');
+    veil.querySelector('.veil-sub')!.textContent = 'ready';
+  }
+  if (entered && fade > 0.05) veil.classList.add('gone');
   const sunAz = art.sunAz + 22 * Math.sin(time / 75);
   const fogAlt = Number.isNaN(minimap.lowAlt) ? -1000 : minimap.lowAlt + 220;
   renderer.draw(view, dz, { ...art, sunAz }, { time, fogAlt, fade: fade * fade * (3 - 2 * fade), ink, ground: gnd });

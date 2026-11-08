@@ -72,27 +72,27 @@ export class Input {
 
   // Keyboard mirrors the sticks: WASD = left stick, arrows = right stick.
 
-  /** Forward/back: W/S. */
+  /** Throttle: W/S. */
   forward(): number {
     const k = this.keys;
     return (k.has('w') ? 1 : 0) - (k.has('s') ? 1 : 0);
   }
 
-  /** Turn: A/D (positive = clockwise). */
+  /** Yaw: A/D (positive = clockwise). */
   turn(): number {
     const k = this.keys;
     return (k.has('d') ? 1 : 0) - (k.has('a') ? 1 : 0);
   }
 
-  /** Strafe: ←/→ or Q/E. */
-  strafe(): number {
+  /** Roll: ←/→ or Q/E (positive = bank right). */
+  roll(): number {
     const k = this.keys;
     return (k.has('arrowright') || k.has('e') ? 1 : 0) - (k.has('arrowleft') || k.has('q') ? 1 : 0);
   }
 
-  /** Climb: ↑/↓ or R/F. */
-  climb(): number {
+  /** Pitch, aircraft style: ↓ (or F) pulls the nose up, ↑ (or R) pushes it down. Positive = nose up. */
+  pitch(): number {
     const k = this.keys;
-    return (k.has('arrowup') || k.has('r') ? 1 : 0) - (k.has('arrowdown') || k.has('f') ? 1 : 0);
+    return (k.has('arrowdown') || k.has('f') ? 1 : 0) - (k.has('arrowup') || k.has('r') ? 1 : 0);
   }
 }

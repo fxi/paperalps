@@ -21,11 +21,10 @@
       </div>
 
       <div class="toolbar">
-        <button id="music" class="chip" aria-pressed="false" aria-label="Play music" title="Music (M)">
-          <svg class="i-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
-          <svg class="i-pause" viewBox="0 0 24 24" aria-hidden="true"><rect x="6.5" y="5.5" width="3.6" height="13" /><rect x="13.9" y="5.5" width="3.6" height="13" /></svg>
+        <button id="music" class="chip sound" aria-pressed="false" aria-label="Turn sound on" title="Sound (M)">
+          <svg class="i-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
         </button>
-        <button id="view3d" class="chip" title="View (T)">3D</button>
         <button id="inkmode" class="chip" title="Paper (I)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" /></svg>
         </button>
@@ -39,12 +38,22 @@
         <div id="mapbox" class="mapbox"></div>
       </div>
 
-      <div class="hint">w/s fly · a/d turn · ↑↓ climb · ←→ strafe · t view · i ink · m music</div>
+      <div class="hint">w/s throttle · a/d yaw · ↓↑ pitch · ←→ roll · i ink · m sound</div>
     </div>
 
     <div id="veil">
       <div class="veil-title">PAPER ALPS</div>
       <div class="veil-sub">unfolding terrain…</div>
+      <div class="veil-actions">
+        <button id="enter" class="enter" title="Enter (↵)">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z" /></svg>
+          <span>FLY</span>
+        </button>
+        <button id="veil-sound" class="chip sound" aria-pressed="true" aria-label="Turn sound off" title="Sound">
+          <svg class="i-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+        </button>
+      </div>
     </div>
 
     <footer class="credits">
