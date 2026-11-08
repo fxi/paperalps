@@ -2,6 +2,64 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## Click-to-fly autopilot
+
+- **Commit:** `8266aeb`: `feat(labels): city labels and click-to-fly autopilot`
+- **Date:** 2026-11-08
+- **Who:** fxi (idea) · Claude (implementation)
+- **Why:** pick a summit or city and be flown there, with the same banking
+  feel as manual flight.
+- **What:** `src/ui/autopilot.ts` (pure, tested in `tests/autopilot.test.ts`)
+  outputs throttle / roll / pitch in stick units that feed the normal flight
+  model: bank from the heading error, pitch to cruise above the target and
+  450 m above the terrain sampled ahead along the route, speed proportional to
+  the distance left to a 3 km stand-off point, so it brakes and stops facing
+  the target 600 m above it. Labels are clickable (name and a wide dot area);
+  the target is pinned first in the declutter (`placePeaks` `pinned` option,
+  ignores distance and significance) and highlighted. Any stick, key, drag or
+  zoom cancels it.
+- **Notes:** on touch, labels under the lower stick zones are not tappable.
+  Stops rather than orbiting at the end.
+
+## City labels
+
+- **Commit:** `8266aeb`: `feat(labels): city labels and click-to-fly autopilot`
+- **Date:** 2026-11-08
+- **Who:** fxi (idea) · Claude (implementation)
+- **What:** `npm run cities` (`scripts/fetch-cities.mjs`, Overpass with retry
+  and a mirror) writes `src/data/cities.json`: 264 cities and towns ≥ 30 000
+  inhabitants in the app bounds, 10 kB. They join the peaks in one priority
+  list (`mergePlaces`, score from population); reach scales with √population
+  (a 30k town within ~15 km, Milano ~100 km). Elevation is read from the
+  terrain when first shown. Square marker, no elevation line. The minimap
+  keeps peaks only.
+
+## Map toggle and north button
+
+- **Commit:** `7989ef0`: `feat(ui): map toggle and rotating north button that resets heading`
+- **Date:** 2026-11-08
+- **Who:** fxi (direction) · Claude (implementation)
+- **What:** two bare toolbar icons next to sound and paper/ink. **Map** (P)
+  shows/hides the minimap, saved as `paperalps.minimap`; when hidden it stays
+  laid out (invisible) so it keeps sampling the ground for the fog, and labels
+  no longer avoid its area. **North** (N) is a compass needle that rotates with
+  the heading (replaces the tall arrow beside the map); clicking it eases the
+  heading back to north the short way, cancelled by any yaw/roll input. Heading
+  readout now shows `000°` instead of `360°` near north.
+
+## Frozen / duplicated peak labels
+
+- **Commit:** `4df50fe`: `fix(labels): stale fade-out timer orphaned peak labels`
+- **Date:** 2026-11-08
+- **Who:** fxi (report) · Claude (fix)
+- **Why:** labels sometimes stayed frozen (often near the horizon), doubled, or
+  piled up 4–5 at a time.
+- **What:** a peak could fade out twice (two removal timers), be removed by the
+  first, then re-created; the second timer then deleted the *new* element from
+  the map while it stayed in the DOM, never updated again. Now one timer per
+  element, cancelled when the label comes back, and a timer only unmaps the
+  element it belongs to. `src/ui/labels.ts`.
+
 ## Quieter HUD and peak labels
 
 - **Commit:** `47f2e45`: `feat(ui): aircraft sticks, fly splash with sound toggle and quieter hud`
