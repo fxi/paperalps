@@ -2,6 +2,18 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## Deploy on manual runs, newer actions
+
+- **Commit:** `ci: deploy on manual runs and update action versions`
+- **Date:** 2026-11-08
+- **Who:** Claude (fix after the first CI run)
+- **Why:** the first push to the empty repo triggered no run, and the manual
+  `workflow_dispatch` run passed its checks but skipped the deploy (the
+  condition allowed `push` events only). The actions also warned about the
+  Node 20 deprecation.
+- **What:** deploy on any non-PR run of `main`; `actions/checkout@v5`,
+  `actions/setup-node@v5`, `actions/upload-pages-artifact@v4`.
+
 ## Rename to paperalps, CI and GitHub Pages
 
 - **Commit:** `ci: rename to paperalps, add vitest config and github pages workflow`
