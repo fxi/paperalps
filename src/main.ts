@@ -32,7 +32,10 @@ const hud = document.getElementById('hud')!;
 const altEl = document.getElementById('alt-value')!;
 const gndEl = document.getElementById('gnd')!;
 const coordEl = document.getElementById('coord')!;
-const northEl = document.querySelector('.north svg') as SVGElement;
+const northBtn = document.getElementById('north') as HTMLButtonElement;
+const northEl = northBtn.querySelector('svg') as SVGElement;
+const mapBtn = document.getElementById('minimap') as HTMLButtonElement;
+const mapEl = document.getElementById('mapbox')!;
 const musicBtn = document.getElementById('music') as HTMLButtonElement;
 const inkBtn = document.getElementById('inkmode') as HTMLButtonElement;
 const veil = document.getElementById('veil')!;
@@ -70,6 +73,8 @@ let mode3d = true;
 let inkTarget = load('ink', '1') === '1' ? 1 : 0;
 let ink = inkTarget;
 let soundOn = load('sound', '1') === '1';
+let mapOn = load('minimap', '1') === '1';
+let northReset = false;
 let entered = false; // the splash was dismissed (a user gesture: audio may start)
 let tiltNow = mode3d ? art.tilt * DEG : 0;
 let dz = -1;
@@ -131,6 +136,15 @@ function enter(): void {
 }
 enterBtn.addEventListener('click', enter);
 enterBtn.focus();
+mapBtn.addEventListener('click', () => {
+  mapOn = !mapOn;
+  save('minimap', mapOn ? '1' : '0');
+  syncButtons();
+});
+// ease the heading back to north; any turn input cancels it
+northBtn.addEventListener('click', () => {
+  northReset = true;
+});
 inkBtn.addEventListener('click', () => {
   inkTarget = inkTarget ? 0 : 1;
   save('ink', String(inkTarget));
@@ -145,6 +159,8 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'm') musicBtn.click();
   if (e.key === 't') mode3d = !mode3d; // top-down view: keyboard only, not saved
   if (e.key === 'i') inkBtn.click();
+  if (e.key === 'p') mapBtn.click();
+  if (e.key === 'n') northBtn.click();
 });
 
 function syncButtons(): void {
@@ -154,6 +170,9 @@ function syncButtons(): void {
     b.setAttribute('aria-label', soundOn ? 'Turn sound off' : 'Turn sound on');
   }
   inkBtn.setAttribute('aria-label', inkTarget ? 'Switch to white paper' : 'Switch to black paper');
+  mapBtn.setAttribute('aria-pressed', String(mapOn));
+  mapBtn.setAttribute('aria-label', mapOn ? 'Hide the map' : 'Show the map');
+  mapEl.classList.toggle('off', !mapOn);
   document.body.classList.toggle('ink', inkTarget === 1);
 }
 
@@ -220,7 +239,16 @@ function frame(now: number): void {
   // rudder yaws directly; banking makes a coordinated turn
   const turnRate = rudder * 0.75 + Math.sin(bank) * 1.6;
   yawRate += (turnRate - yawRate) * (1 - Math.exp(-dt * 4));
-  fl.yaw = wrapAngle(fl.yaw + yawRate * dt);
+  if (northReset && (Math.abs(rudder) > 0.05 || Math.abs(rollIn) > 0.05)) northReset = false;
+  if (northReset) {
+    // short way round, eased
+    fl.yaw = wrapAngle(fl.yaw * Math.exp(-dt * 3.5));
+    yawRate = 0;
+    if (Math.abs(fl.yaw) < 0.002) {
+      fl.yaw = 0;
+      northReset = false;
+    }
+  } else fl.yaw = wrapAngle(fl.yaw + yawRate * dt);
 
   // pitch trades airspeed for climb; a small direct term still works when hovering
   const climbMax = Math.min(700, Math.max(180, agl * 0.3));
@@ -338,7 +366,7 @@ function frame(now: number): void {
   if (!Number.isNaN(ground)) gndEl.textContent = `GND ${Math.round(ground)}  AGL ${Math.round(fl.alt - ground)}`;
   const lat = mercLat(fl.my) / DEG;
   const lon = fl.mx * 360 - 180;
-  coordEl.textContent = `${lat.toFixed(3)}°N  ${lon.toFixed(3)}°E  ${String(Math.round(((fl.yaw / DEG) % 360 + 360) % 360)).padStart(3, '0')}°`;
+  coordEl.textContent = `${lat.toFixed(3)}°N  ${lon.toFixed(3)}°E  ${String(Math.round(((fl.yaw / DEG) % 360 + 360) % 360) % 360).padStart(3, '0')}°`;
   northEl.style.transform = `rotate(${-fl.yaw}rad)`;
 
   const speed = Math.hypot(vel.e, vel.n) / maxSpeed;
