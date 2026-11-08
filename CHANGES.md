@@ -2,6 +2,85 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## Quieter HUD and peak labels
+
+- **Commit:** `47f2e45`: `feat(ui): aircraft sticks, fly splash with sound toggle and quieter hud`
+- **Date:** 2026-11-08
+- **Who:** fxi (direction, mockup) · Claude (implementation)
+- **Why:** the boxed altitude, boxed chips and bold peak labels were too loud.
+- **What:** altitude uses the same soft style as the other readouts; the
+  toolbar keeps only bare sound and paper/ink icons under the readout; the 3D
+  button is gone (T still toggles top-down, not saved, always starts in 3D).
+  Peak names in soft ink, regular weight; elevations fainter; smaller, thinner
+  marker. `index.html`, `src/style.css`, `src/main.ts`.
+
+## Splash "fly" button and saved sound preference
+
+- **Commit:** `47f2e45`: `feat(ui): aircraft sticks, fly splash with sound toggle and quieter hud`
+- **Date:** 2026-11-08
+- **Who:** fxi (direction) · Claude (implementation)
+- **Why:** start with sound from the splash screen and keep the choice.
+- **What:** the veil now waits for a **FLY** button (or Enter) next to a sound
+  toggle; it fades once the user entered and the terrain is ready. The toolbar
+  play/pause chip is now a speaker/muted toggle (M). The preference is saved as
+  `paperalps.sound` in localStorage (default on); audio starts on the FLY
+  gesture. `index.html`, `src/main.ts`, `src/style.css`.
+
+## Sonic variometer
+
+- **Commit:** `83cd15e`: `feat(audio): dark drone score with in-key variometer`
+- **Date:** 2026-11-08
+- **Who:** fxi (idea) · Claude (implementation)
+- **Why:** tie the music to what the pilot does, like a glider's audio vario.
+- **What:** `Steering` gained `vario` (climb / max climb) and `bank`. Climbing
+  plays soft triangle pings on a sixteenth grid of the score, rising through
+  D minor pentatonic and getting denser with climb rate. Sinking fades in a
+  low, filtered growl that steps down A–G–F–E–D with sink rate. Both pan with
+  the bank.
+
+## Camera looks at the horizon
+
+- **Commit:** `2e9e66f`: `feat(render): camera roll, tilted sky horizon and 75 degree default tilt`
+- **Date:** 2026-11-08
+- **Who:** fxi (request) · Claude (implementation)
+- **What:** `DEFAULT_ART.tilt` 62 → 75 so the horizon and sky are in view; debug
+  slider up to 85; the pitch-led view may reach 86°.
+- **Notes:** measured GPU time with `?debug&scale=1.25` at 62/70/75°: no
+  difference.
+
+## Dark drone score
+
+- **Commit:** `83cd15e`: `feat(audio): dark drone score with in-key variometer`
+- **Date:** 2026-11-08
+- **Who:** fxi (direction) · Claude (implementation)
+- **Why:** the D major pentatonic pad and bell plucks sounded too bright and
+  naive; wanted something dark, low, drone-like, still relaxing.
+- **What:** rewrote `src/audio/ambient.ts`: D minor (i–bVI–iv–v sus) at 44 BPM,
+  chords change every ~44 s by gliding persistent voices (sub sine, bass,
+  detuned saw drone through a breathing low-pass) instead of retriggering.
+  A throb on the drone deepens with speed; high fifths and air noise fade in
+  with altitude; low rumble noise. Rare low FM tolls and short muted minor
+  motifs through a slow delay. Longer, darker reverb; 28 Hz high-pass.
+- **Notes:** same public API (`play/pause/toggle/setSteering`).
+
+## Aircraft-style sticks: throttle/yaw and pitch/roll
+
+- **Commit:** `2e9e66f`: `feat(render): camera roll, tilted sky horizon and 75 degree default tilt`, `47f2e45`: `feat(ui): aircraft sticks, fly splash with sound toggle and quieter hud`
+- **Date:** 2026-11-08
+- **Who:** fxi (direction) · Claude (implementation)
+- **Why:** forward/turn + climb/strafe did not feel natural; wanted a small
+  fast aircraft feel.
+- **What:** left stick = throttle + yaw, right stick = pitch (pull back = nose
+  up) + roll. Banking makes a coordinated turn; pitch converts airspeed into
+  climb (with a small direct term so it still works when hovering); both
+  auto-level on release. The camera rolls with the bank and tilts with the
+  pitch (reduced in top-down mode). `basis()` gained a `roll` argument
+  (`src/render/camera.ts`); the sky gradient now follows a tilted horizon line
+  (`uHorizonPt`/`uHorizonN` in `sky.frag`). Keys: W/S throttle, A/D yaw,
+  ↓/↑ (F/R) pitch, ←/→ (Q/E) roll. Strafe removed.
+- **Notes:** the facet scale uses the base tilt, not the pitched one, so nodding
+  the nose does not rescale the folds.
+
 ## Deploy on manual runs, newer actions
 
 - **Commit:** `ci: deploy on manual runs and update action versions`
