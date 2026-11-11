@@ -12,6 +12,14 @@ export class Labels {
   private lastPlace = 0;
   /** The autopilot destination: always placed first, highlighted. */
   private target: Peak | null = null;
+  /** Game hooks: a marker per peak (star / solved) and the peaks that win the declutter. */
+  markOf: (p: Peak) => 'star' | 'done' | null = () => null;
+  priority: () => Peak[] = () => [];
+
+  /** Re-place now (e.g. after a puzzle was solved). */
+  refresh(): void {
+    this.lastPlace = 0;
+  }
 
   /** `onPick` fires when a label is clicked or tapped. */
   constructor(
@@ -41,7 +49,7 @@ export class Labels {
         const r = e.getBoundingClientRect();
         return [r.left, r.top, r.right, r.bottom] as [number, number, number, number];
       });
-      const placed = placePeaks(peaks, project, w, h, budget, { avoid, maxDist, pinned: this.target ?? undefined });
+      const placed = placePeaks(peaks, project, w, h, budget, { avoid, maxDist, pinned: this.target ?? undefined, priority: this.priority() });
       const next = new Set(placed.map((p) => p.peak.id));
       for (const [id, el] of this.els) {
         if (!next.has(id) && !el.classList.contains('out')) {
@@ -84,6 +92,9 @@ export class Labels {
           this.timers.delete(el);
         }
         this.peakOf.set(peak.id, peak);
+        const m = this.markOf(peak);
+        el.classList.toggle('star', m === 'star');
+        el.classList.toggle('done', m === 'done');
       }
     }
     for (const [id, el] of this.els) {
@@ -96,7 +107,8 @@ export class Labels {
       }
       el.style.visibility = '';
       el.style.transform = `translate3d(${s[0].toFixed(1)}px, ${s[1].toFixed(1)}px, 0)`;
-      const fade = p === this.target ? 1 : 1 - Math.max(0, Math.min(1, (s[2] / maxDist - 0.55) / 0.45));
+      let fade = p === this.target ? 1 : 1 - Math.max(0, Math.min(1, (s[2] / maxDist - 0.55) / 0.45));
+      if (el.classList.contains('star')) fade = Math.max(fade, 0.6); // stars stay findable far away
       el.style.setProperty('--fade', fade.toFixed(2));
     }
   }

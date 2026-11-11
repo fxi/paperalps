@@ -80,6 +80,8 @@ export interface PlaceOptions {
   avoid?: [number, number, number, number][];
   /** Placed first whenever on screen, ignoring significance and distance. */
   pinned?: Peak;
+  /** Placed right after `pinned`, without the significance test and with twice the reach. */
+  priority?: Peak[];
 }
 
 /**
@@ -98,16 +100,23 @@ export function placePeaks(peaks: Peak[], project: Projector, w: number, h: numb
   const boxes: [number, number, number, number][] = [...(opts.avoid ?? [])];
   const out: PlacedPeak[] = [];
   const pinned = opts.pinned;
-  for (const p of pinned ? [pinned, ...peaks] : peaks) {
+  const priority = new Set(opts.priority ?? []);
+  const tried = new Set<Peak>();
+  // pinned first (no limits), then priority places (no significance test, twice
+  // the reach), then everything else in input order
+  const order = [...(pinned ? [pinned] : []), ...priority, ...peaks];
+  for (const p of order) {
     if (out.length >= budget) break;
-    const pin = p === pinned && out.length === 0;
-    if (p === pinned && !pin) continue; // already placed (or tried) first
-    if (!pin && p.iso < minIso) continue;
+    if (tried.has(p)) continue;
+    tried.add(p);
+    const pin = p === pinned;
+    const prio = !pin && priority.has(p);
+    if (!pin && !prio && p.iso < minIso) continue;
     const s = project(p);
     if (!s) continue;
     const [x, y, dist] = s;
-    if (!pin && dist > maxDist) continue;
-    if (!pin && p.iso < (dist / 1000) * isoPerKm) continue;
+    if (!pin && dist > maxDist * (prio ? 2 : 1)) continue;
+    if (!pin && !prio && p.iso < (dist / 1000) * isoPerKm) continue;
     if (x < 24 || y < 24 || x > w - 24 || y > h - 24) continue;
     const bw = displayName(p.name).length * charW + 16;
     const box: [number, number, number, number] = [x - bw / 2 - pad, y - lineH - pad, x + bw / 2 + pad, y + 14 + pad];

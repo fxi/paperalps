@@ -68,7 +68,11 @@ export interface FrameExtra {
   fade: number;
   ink: number; // 0..1
   ground: number; // terrain under the flyer
+  night?: number; // 0..1: the land goes dark, lit only by lamps
+  lamps?: Float32Array; // up to MAX_LAMPS × (east m, north m from the flyer, radius m, power)
 }
+
+export const MAX_LAMPS = 16;
 
 export class Renderer {
   readonly gl: WebGL2RenderingContext;
@@ -187,8 +191,10 @@ export class Renderer {
       if (q) gl.beginQuery(this.timerExt.TIME_ELAPSED_EXT, q);
     }
     const mix = (a: number[], b: number[]) => a.map((v, i) => v + (b[i] - v) * ex.ink);
-    const skyTop = mix(PAPER_SKY.top, INK_SKY.top);
-    const skyLow = mix(PAPER_SKY.low, INK_SKY.low);
+    const nt = ex.night ?? 0;
+    const dusk = (a: number[]) => a.map((v) => v * (1 - 0.86 * nt));
+    const skyTop = dusk(mix(PAPER_SKY.top, INK_SKY.top));
+    const skyLow = dusk(mix(PAPER_SKY.low, INK_SKY.low));
 
     // ---- sky ----
     gl.disable(gl.DEPTH_TEST);
@@ -284,6 +290,10 @@ export class Renderer {
     gl.uniform1f(u('uFogDist'), view.far * 0.42);
     gl.uniform3fv(u('uFogCol'), skyLow);
     gl.uniform1f(u('uInk'), ex.ink);
+    gl.uniform1f(u('uNight'), nt);
+    const nl = ex.lamps ? Math.min(MAX_LAMPS, Math.floor(ex.lamps.length / 4)) : 0;
+    gl.uniform1i(u('uLampN'), nl);
+    if (nl) gl.uniform4fv(u('uLamps'), ex.lamps!.subarray(0, nl * 4));
     // Noise anchors (see paper.frag): flyer in z8 px times each domain's
     // frequency, plus its drift, wrapped to the noise lattice period in double
     // precision. Small coordinates on the GPU, and no visible seam at the wrap.

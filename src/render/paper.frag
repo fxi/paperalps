@@ -25,6 +25,9 @@ uniform float uClouds;
 uniform float uFogDist;       // horizon fog distance (m)
 uniform vec3 uFogCol;         // horizon colour (matches the sky)
 uniform float uInk;           // 0 = white paper, 1 = black paper + white paint
+uniform float uNight;         // 0..1 night: dark land, lit by lamps
+uniform int uLampN;
+uniform vec4 uLamps[16];      // east, north (m from the flyer), radius (m), power
 // Procedural noise domains (clouds, mist, fibre, fibre, brush). Domain i is
 // evaluated at  uNoiseA[i] + rel * uZ8PerData * NOISE_K[i],  where the anchor
 // is (flyer_z8 * k + drift) mod NOISE_P, computed in double precision on the
@@ -268,6 +271,22 @@ void main() {
     float fogH = uFogAlt + (mist - 0.5) * 420.0;
     float vfog = smoothstep(fogH + 180.0, fogH - 260.0, h0) * uFog;
     outc = mix(outc, mix(vec3(0.86, 0.865, 0.87), vec3(0.42, 0.425, 0.43), uInk), vfog * mix(0.75, 0.45, uInk));
+  }
+
+  // ---- night: the land goes dark, lit only around the lamps ----
+  // lamps are world points re-expressed relative to the flyer every frame (small coordinates)
+  if (uNight > 0.001) {
+    vec2 pm = vec2(rel.x, -rel.y) * uMpp;
+    float glow = 0.0;
+    for (int i = 0; i < 16; i++) {
+      if (i >= uLampN) break;
+      vec4 L = uLamps[i];
+      float d = length(pm - L.xy) / max(L.z, 1.0);
+      glow += L.w * exp(-d * d * 2.0);
+    }
+    glow = clamp(glow, 0.0, 1.0);
+    vec3 darkC = outc * 0.06 + vec3(0.01);
+    outc = mix(outc, mix(darkC, outc * (0.55 + 0.55 * glow), glow), uNight);
   }
 
   // ---- grain + vignette ----

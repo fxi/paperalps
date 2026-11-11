@@ -20,6 +20,8 @@ export class Minimap {
   private last = 0;
   /** Low percentile of elevations near the player (for valley fog). */
   lowAlt = NaN;
+  /** Solved game summits in order, drawn as a dashed line. */
+  trail: Peak[] = [];
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -147,6 +149,23 @@ export class Minimap {
           }
         }
       ctx.stroke();
+    }
+
+    // game trail: solved summits in order, dashed ink
+    if (this.trail.length > 1) {
+      ctx.save();
+      ctx.strokeStyle = ink;
+      ctx.lineWidth = 1.6 * dpr;
+      ctx.setLineDash([4 * dpr, 3 * dpr]);
+      ctx.beginPath();
+      this.trail.forEach((p, i) => {
+        const sx = ((p.mx - cam.mx) / ext + 0.5) * px;
+        const sy = ((p.my - cam.my) / ext + 0.5) * px;
+        if (i) ctx.lineTo(sx, sy);
+        else ctx.moveTo(sx, sy);
+      });
+      ctx.stroke();
+      ctx.restore();
     }
 
     // view cone (horizontal field of view along the heading)

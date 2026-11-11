@@ -15,7 +15,7 @@ export class Input {
 
   constructor(surface: HTMLElement) {
     window.addEventListener('keydown', (e) => {
-      if (e.target instanceof HTMLInputElement) return;
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const k = e.key.toLowerCase();
       this.keys.add(k);
       if (k === '+' || k === '=') this.zoomDelta += 0.5;

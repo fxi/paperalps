@@ -2,6 +2,54 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## The 50 summits: a sealed escape game, toolbox, first five steps
+
+- **Commit:** `feat(game): sealed puzzle chain, toolbox, world hooks and first five steps`
+- **Date:** 2026-11-08
+- **Who:** fxi (concept, direction, playtesting) · Claude (design,
+  implementation) · Codex gpt-6.1-sol (design review)
+- **Why:** turn the flight into an expert escape game (CS, music, OSINT,
+  hackers). The first prototype (groups, waves, two simple puzzles, hints,
+  explanatory text) was judged too easy and off-theme: the game must be
+  strictly sequential, wordless (multilingual later), tied to details of each
+  place, and give players real instruments.
+- **What:**
+  - Sealed chain (`src/game/seal.ts`, `chain.ts`, `scripts/seal-chain.mjs`,
+    `npm run seal`): each step's record (summit, puzzle, the clue that leads
+    to it) is AES-GCM encrypted with a key derived from the previous answer;
+    a step only carries a salted hash of its own answer. The plain chain lives
+    in `game-src/` (not bundled). Puzzles derive candidate answers from what
+    the player did and submit them; answers are never shipped.
+  - Save v2 (`paperalps.game.v2`): accepted answers + per-puzzle progress;
+    everything else is re-derived by unsealing. Notes in localStorage, binary
+    payloads in IndexedDB (`src/game/notes.ts`).
+  - Tableau: the frozen map inked over, paper grain, a facet unfold; only a
+    step number and ✕. Notebook: 01–50, names appear as they are solved.
+    The star moves to the next summit when a step is solved.
+  - Toolbox (`src/game/tools/`, one lazy chunk each, always available):
+    enigma (fxi.io/x cipher, compatible both ways, bits ⇄ image), notepad
+    (text/image/sound, carry an item), binutf (16-bit grid ⇄ UTF-16, binary,
+    hex), gis (GeoJSON numbers, draw on the relief, fly to it, plan view),
+    recorder (records the game's own output or the mic; slow/fast/reverse,
+    ink waveform), quine (sandboxed iframe with console relay, tixy mode).
+  - World hooks (`src/game/world.ts`): lines and tappable points draped on the
+    terrain, a direction-anchored ghost skyline with a shutter, night with up
+    to 16 world-anchored lamps (`paper.frag` `uNight`/`uLamps`, positions sent
+    flyer-relative every frame), plan view.
+  - One icon set: Phosphor (light, MIT), inlined at build from a dev
+    dependency (`src/ui/icons.ts`), for the toolbar, the toolbox, every tool
+    and puzzle button and the note labels. No Unicode glyphs left in the UI,
+    so it renders the same on every OS.
+  - Score moods (`map`, `paper`, `hush`, `nave`, `night`) and a stream tap of
+    the master output for the recorder.
+  - Steps 1–5 (Valais and Mont Blanc): pure logic per puzzle with tests that
+    prove uniqueness and tolerances (`tests/game.test.ts`, spoilers).
+- **Notes:** the chain stops after step 5 (an empty reveal) until the next
+  batch. Not yet checked on a phone. One step is sound-only by design.
+  Removed: groups, waves, hints, the fold and fifth puzzles. The plain chain
+  (`game-src/`) is git-ignored since the repo is public: keep a private
+  backup; tests that read it skip without it (CI runs the rest).
+
 ## Click-to-fly autopilot
 
 - **Commit:** `8266aeb`: `feat(labels): city labels and click-to-fly autopilot`

@@ -34,6 +34,23 @@ const VARIO_DEAD = 0.08;
 
 const mtof = (m: number) => 440 * Math.pow(2, (m - 69) / 12);
 
+/**
+ * Puzzle themes colour the same score rather than replacing it:
+ *   map   — the flight score
+ *   paper — drone a little lower, fewer bells, dry paper crinkles
+ *   hush  — drone ducked and no events, so a puzzle's own voices lead
+ *   nave  — low drone, rare bells: a stone room
+ *   night — the flight score, thinner
+ */
+export type ThemeId = 'map' | 'paper' | 'hush' | 'nave' | 'night';
+const THEMES: Record<ThemeId, { drone: number; events: number; crinkle: number }> = {
+  map: { drone: 0.32, events: 1, crinkle: 0 },
+  paper: { drone: 0.22, events: 0.6, crinkle: 0.18 },
+  hush: { drone: 0.07, events: 0, crinkle: 0 },
+  nave: { drone: 0.14, events: 0.25, crinkle: 0 },
+  night: { drone: 0.26, events: 0.4, crinkle: 0 },
+};
+
 export interface Steering {
   altitude: number; // metres
   speed: number; // 0..1
@@ -68,6 +85,8 @@ export class Ambient {
   private step = 0;
   private steer: Steering = { altitude: 1500, speed: 0 };
   private lastEvent = 0;
+  private theme: ThemeId = 'map';
+  private droneBus: GainNode | null = null;
   private nextPing = 0;
   private varioPan!: StereoPannerNode;
   private sinkOsc: OscillatorNode[] = [];
@@ -106,6 +125,77 @@ export class Ambient {
     }
   }
 
+  /** Blend to a theme over a couple of seconds. */
+  setTheme(id: ThemeId): void {
+    this.theme = id;
+    if (!this.ctx || !this.droneBus) return;
+    this.droneBus.gain.setTargetAtTime(THEMES[id].drone, this.ctx.currentTime, 1.2);
+  }
+
+  /**
+   * A bus for a puzzle's own voices (through the score's room), or null when
+   * the sound is off: puzzles must stay solvable without it.
+   */
+  puzzleAudio(): { ctx: AudioContext; out: AudioNode } | null {
+    if (!this.ctx || !this.playing) return null;
+    const bus = this.ctx.createGain();
+    bus.gain.value = 1;
+    bus.connect(this.dry);
+    const send = this.ctx.createGain();
+    send.gain.value = 0.25;
+    bus.connect(send).connect(this.reverb);
+    return { ctx: this.ctx, out: bus };
+  }
+
+  private out: AudioNode | null = null;
+  private hushed = false;
+
+  /** Silence the score (and puzzle voices) for a while, without stopping the audio context. */
+  hush(on: boolean): void {
+    this.hushed = on;
+    if (!this.ctx || !this.playing) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.cancelScheduledValues(t);
+    this.master.gain.setValueAtTime(this.master.gain.value, t);
+    this.master.gain.linearRampToValueAtTime(on ? 0 : 0.85, t + (on ? 0.6 : 2));
+  }
+  private tapNode: MediaStreamAudioDestinationNode | null = null;
+
+  /** A live stream of everything the score and the puzzles play (for the recorder). */
+  tap(): MediaStream | null {
+    if (!this.ctx || !this.out) return null;
+    if (!this.tapNode) {
+      this.tapNode = this.ctx.createMediaStreamDestination();
+      this.out.connect(this.tapNode);
+    }
+    return this.tapNode.stream;
+  }
+
+  /** A short dry rustle: a few band-passed noise grains. */
+  private crinkle(t: number): void {
+    const ctx = this.ctx!;
+    const n = 3 + Math.floor(Math.random() * 4);
+    for (let i = 0; i < n; i++) {
+      const s = ctx.createBufferSource();
+      s.buffer = this.grain ?? (this.grain = noiseBuffer(ctx, 0.2, true));
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 1800 + Math.random() * 3500;
+      bp.Q.value = 1.5;
+      const g = ctx.createGain();
+      const at = t + i * (0.015 + Math.random() * 0.05);
+      g.gain.setValueAtTime(0, at);
+      g.gain.linearRampToValueAtTime(0.05 + Math.random() * 0.05, at + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.03 + Math.random() * 0.05);
+      const pan = ctx.createStereoPanner();
+      pan.pan.value = (Math.random() - 0.5) * 0.8;
+      s.connect(bp).connect(g).connect(pan).connect(this.dry);
+      s.start(at, Math.random() * 0.1);
+      s.stop(at + 0.1);
+    }
+  }
+  private grain: AudioBuffer | null = null;
+
   async toggle(): Promise<boolean> {
     if (this.playing) await this.pause();
     else await this.play();
@@ -120,7 +210,7 @@ export class Ambient {
     const t = ctx.currentTime;
     this.master.gain.cancelScheduledValues(t);
     this.master.gain.setValueAtTime(this.master.gain.value, t);
-    this.master.gain.linearRampToValueAtTime(0.85, t + 4);
+    this.master.gain.linearRampToValueAtTime(this.hushed ? 0 : 0.85, t + 4);
     this.nextTime = t + 0.1;
     clearInterval(this.timer);
     this.timer = window.setInterval(() => this.schedule(), 50);
@@ -150,6 +240,7 @@ export class Ambient {
     comp.attack.value = 0.05;
     comp.release.value = 0.6;
     comp.connect(ctx.destination);
+    this.out = comp;
     // no DC / infrasound
     const hp = ctx.createBiquadFilter();
     hp.type = 'highpass';
@@ -217,7 +308,8 @@ export class Ambient {
     pulse.start();
 
     const droneBus = ctx.createGain();
-    droneBus.gain.value = 0.32;
+    droneBus.gain.value = THEMES[this.theme].drone;
+    this.droneBus = droneBus;
     droneBus.connect(this.pulseGain).connect(this.droneFilter);
     this.droneFilter.connect(this.dry);
     this.droneFilter.connect(this.reverb);
@@ -399,20 +491,24 @@ export class Ambient {
 
   private tick(step: number, t: number): void {
     const beat = 60 / BPM;
+    const th = THEMES[this.theme];
     if (step > 0 && step % STEPS_PER_CHORD === 0) {
       this.chord = (this.chord + 1) % CHORDS.length;
       this.glideTo(CHORDS[this.chord], t);
       // a low toll marks the change
-      this.toll(mtof(ROOT + 12 + CHORDS[this.chord].bass), t + beat * 0.5, 0.8);
+      if (th.events > 0) this.toll(mtof(ROOT + 12 + CHORDS[this.chord].bass), t + beat * 0.5, 0.8 * th.events);
       this.lastEvent = t;
       return;
     }
+    // paper theme: dry crinkles of a sheet being handled, now and then
+    if (th.crinkle && Math.random() < th.crinkle) this.crinkle(t + Math.random() * beat * 0.4);
+    if (th.events === 0) return;
     if (step % 2 !== 0) return; // events land on beats only
     const c = CHORDS[this.chord];
     const sp = clamp01(this.steer.speed);
     if (t - this.lastEvent < beat * 4) return;
 
-    const r = Math.random();
+    const r = Math.random() / th.events;
     if (r < 0.05 + sp * 0.03) {
       // toll on a chord tone, octave 2-3
       const deg = [c.bass, c.v[0], c.v[1]][Math.floor(Math.random() * 3)];
@@ -548,12 +644,16 @@ function impulse(ctx: BaseAudioContext, seconds: number, decay: number): AudioBu
   return buf;
 }
 
-function noiseBuffer(ctx: BaseAudioContext, seconds: number): AudioBuffer {
+function noiseBuffer(ctx: BaseAudioContext, seconds: number, white = false): AudioBuffer {
   const len = Math.floor(ctx.sampleRate * seconds);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);
   const d = buf.getChannelData(0);
   let b = 0;
   for (let i = 0; i < len; i++) {
+    if (white) {
+      d[i] = Math.random() * 2 - 1;
+      continue;
+    }
     // brownish noise
     b = (b + 0.02 * (Math.random() * 2 - 1)) / 1.02;
     d[i] = b * 3.5;

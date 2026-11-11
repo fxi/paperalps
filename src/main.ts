@@ -1,9 +1,10 @@
 import '@fontsource/ibm-plex-mono/400.css';
 import '@fontsource/ibm-plex-mono/500.css';
 import './style.css';
+import { hydrateIcons } from './ui/icons';
 import { TileStore } from './dem/tileStore';
 import { TILE, lonLatToWorld, tileKey, mod, EARTH_CIRC } from './geo/mercator';
-import { Renderer, DEFAULT_ART, NEAR_K, FAR_K, FAR_DROP, type Art } from './render/renderer';
+import { Renderer, DEFAULT_ART, NEAR_K, FAR_K, FAR_DROP, MAX_LAMPS, type Art } from './render/renderer';
 import { pickDataZoom } from './render/view';
 import { makeView, project, mercToLocal, localToMerc, mercLat, FOVY, type Flyer, type View } from './render/camera';
 import { Stick } from './ui/joystick';
@@ -11,11 +12,17 @@ import { Input } from './ui/input';
 import { Minimap } from './ui/minimap';
 import { Labels } from './ui/labels';
 import { preparePeaks, prepareCities, mergePlaces, type RawPeak, type RawCity, type Peak } from './ui/peaks';
-import { autopilot } from './ui/autopilot';
+import { autopilot, STANDOFF } from './ui/autopilot';
+import { Game } from './game/game';
+import { Trail } from './game/trail';
+import { World, type Lamp } from './game/world';
+import { Toolbox } from './game/tools';
 import { Ambient } from './audio/ambient';
 import { debugPanel } from './ui/debug';
 import rawPeaks from './data/peaks.json';
 import rawCities from './data/cities.json';
+
+hydrateIcons(); // toolbar icons (Phosphor, inlined)
 
 const MIN_DZ = 8;
 const MAX_DZ = 14;
@@ -38,6 +45,7 @@ const northBtn = document.getElementById('north') as HTMLButtonElement;
 const northEl = northBtn.querySelector('svg') as SVGElement;
 const mapBtn = document.getElementById('minimap') as HTMLButtonElement;
 const mapEl = document.getElementById('mapbox')!;
+const notebookBtn = document.getElementById('notebook') as HTMLButtonElement;
 const musicBtn = document.getElementById('music') as HTMLButtonElement;
 const inkBtn = document.getElementById('inkmode') as HTMLButtonElement;
 const veil = document.getElementById('veil')!;
@@ -63,7 +71,10 @@ const minimap = new Minimap(document.getElementById('mapbox')!);
 const peaks = preparePeaks(rawPeaks as RawPeak[]);
 // labels: peaks and cities in one priority list (the minimap keeps peaks only)
 const places = mergePlaces(peaks, prepareCities(rawCities as RawCity[]));
-const labels = new Labels(document.getElementById('labels')!, (p) => setTarget(p));
+// a tap on a star opens its puzzle (after the flight); on any other label, just fly
+const labels = new Labels(document.getElementById('labels')!, (p) => {
+  if (!game.pick(p)) setTarget(p);
+});
 const music = new Ambient();
 const art: Art = { ...DEFAULT_ART };
 if (new URLSearchParams(location.search).has('debug')) {
@@ -71,6 +82,7 @@ if (new URLSearchParams(location.search).has('debug')) {
   renderer.profile = true;
   (window as unknown as { renderer: Renderer }).renderer = renderer;
 }
+const DEBUG = new URLSearchParams(location.search).has('debug');
 
 const fl: Flyer = fromHash() ?? startFlyer();
 let mode3d = true;
@@ -155,11 +167,16 @@ inkBtn.addEventListener('click', () => {
   syncButtons();
 });
 window.addEventListener('keydown', (e) => {
-  if (e.target instanceof HTMLInputElement) return;
+  if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
   if (!entered) {
     if (e.key === 'Enter' && e.target === document.body) enter();
     return;
   }
+  if (game.isOpen) {
+    if (e.key === 'Escape') game.closeSheet();
+    return;
+  }
+  if (e.key === 'c') game.openNotebook();
   if (e.key === 'm') musicBtn.click();
   if (e.key === 't') mode3d = !mode3d; // top-down view: keyboard only, not saved
   if (e.key === 'i') inkBtn.click();
@@ -183,11 +200,116 @@ function syncButtons(): void {
 // ------------------------------------------------------------- autopilot ---
 // Click / tap a label to fly there; any stick, key, drag or zoom cancels it.
 let target: Peak | null = null;
+let arrive: (() => void) | null = null; // runs on arrival (opens a puzzle)
 function setTarget(p: Peak | null): void {
   target = p;
+  arrive = null;
   labels.setTarget(p);
   if (p) northReset = false;
 }
+
+/** Fly to a place; `then` runs on arrival, or at once when already there. */
+function flyTo(p: Peak, then?: () => void): void {
+  const [e, n] = mercToLocal(fl, p.mx, p.my);
+  if (then && Math.hypot(e, n) < STANDOFF + 1500) {
+    setTarget(null);
+    then();
+    return;
+  }
+  setTarget(p);
+  arrive = then ?? null;
+}
+
+// ------------------------------------------------------------------ game ---
+// While a paper sheet (puzzle or notebook) is open the map is frozen.
+let paused = false;
+const world = new World(document.getElementById('world') as unknown as SVGSVGElement, {
+  camera: () => ({
+    lat: mercLat(fl.my) / DEG,
+    lon: fl.mx * 360 - 180,
+    alt: fl.alt,
+    ground: Number.isNaN(ground) ? fl.alt : ground,
+    heading: ((fl.yaw / DEG) % 360 + 360) % 360,
+    plan: !mode3d,
+  }),
+  project(lon, lat, ele) {
+    if (!view) return null;
+    const [x, y] = lonLatToWorld(lon, lat, 0);
+    const [e, n] = mercToLocal(fl, x / TILE, y / TILE);
+    const h = ele === undefined || Number.isNaN(ele) ? groundAt(x / TILE, y / TILE) : ele;
+    return Number.isNaN(h) ? null : project(view, e, n, h);
+  },
+  projectDir(az, el) {
+    if (!view) return null;
+    const D = 5000;
+    const p = project(view, Math.sin(az) * Math.cos(el) * D, Math.cos(az) * Math.cos(el) * D, fl.alt + (Math.sin(el) * D) / art.lift);
+    return p ? [p[0], p[1]] : null;
+  },
+  ground(lon, lat) {
+    const [x, y] = lonLatToWorld(lon, lat, 0);
+    return groundAt(x / TILE, y / TILE);
+  },
+  get lift() {
+    return art.lift;
+  },
+  setPlan(on) {
+    mode3d = !on;
+  },
+  isPlan: () => !mode3d,
+  setNight(v, l) {
+    nightTarget = v;
+    lamps = l;
+    if (paused && v === 0) {
+      // the map is frozen under a sheet: no time to fade, day comes back at once
+      night = 0;
+      document.body.classList.remove('night');
+    }
+  },
+  flyToLonLat(lon, lat) {
+    const [x, y] = lonLatToWorld(lon, lat, 0);
+    setTarget({ id: -1, name: '', ele: NaN, lon, lat, iso: 0, mx: x / TILE, my: y / TILE });
+  },
+});
+let nightTarget = 0;
+let night = 0;
+let lamps: Lamp[] = [];
+const lampBuf = new Float32Array(MAX_LAMPS * 4);
+const game = new Game(peaks, {
+  flyTo,
+  setPaused(v) {
+    paused = v;
+    if (v) {
+      setTarget(null);
+      if (nightTarget === 0) {
+        night = 0;
+        document.body.classList.remove('night');
+      }
+      music.setSteering({ altitude: fl.alt, speed: 0, vario: 0, bank: 0 });
+    } else {
+      labels.refresh();
+      canvas.focus?.();
+    }
+  },
+  setMood: (m) => music.setTheme(m),
+  puzzleAudio: () => (soundOn ? music.puzzleAudio() : null),
+  refresh: () => labels.refresh(),
+}, world);
+const toolbox = new Toolbox(document.getElementById('toolbox')!, {
+  notes: game.notes,
+  world,
+  game,
+  audio() {
+    const a = soundOn ? music.puzzleAudio() : null;
+    const tap = a ? music.tap() : null;
+    return a && tap ? { ...a, tap: () => tap, direct: a.ctx.destination, hush: (on: boolean) => music.hush(on) } : null;
+  },
+});
+void toolbox;
+if (DEBUG) Object.assign(window, { __pa: { world, game, fl, toolbox } });
+labels.markOf = (p) => game.mark(p);
+labels.priority = () => game.stars();
+const trail = new Trail(document.getElementById('trail') as unknown as SVGSVGElement);
+notebookBtn.addEventListener('click', () => game.openNotebook());
 
 /** Terrain metres at a Mercator point, from the coarse level (NaN if not loaded). */
 function groundAt(mx: number, my: number): number {
@@ -219,6 +341,11 @@ let view: View | null = null;
 function frame(now: number): void {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
+  if (paused) {
+    // a sheet covers the map: keep the last frame, spend nothing
+    requestAnimationFrame(frame);
+    return;
+  }
   const time = (now - t0) / 1000;
   const w = renderer.cssW;
   const h = renderer.cssH;
@@ -267,7 +394,11 @@ function frame(now: number): void {
     throttle = cmd.throttle;
     rollIn = cmd.roll;
     pitchIn = cmd.pitch;
-    if (cmd.arrived) setTarget(null);
+    if (cmd.arrived) {
+      const then = arrive;
+      setTarget(null);
+      then?.();
+    }
   }
   const sy = Math.sin(fl.yaw);
   const cy = Math.cos(fl.yaw);
@@ -445,8 +576,19 @@ function frame(now: number): void {
   if (entered && fade > 0.05) veil.classList.add('gone');
   const sunAz = art.sunAz + 22 * Math.sin(time / 75);
   const fogAlt = Number.isNaN(minimap.lowAlt) ? -1000 : minimap.lowAlt + 220;
-  renderer.draw(view, dz, { ...art, sunAz }, { time, fogAlt, fade: fade * fade * (3 - 2 * fade), ink, ground: gnd });
+  night += (nightTarget - night) * (1 - Math.exp(-dt * 0.8));
+  let nl = 0;
+  for (const l of lamps) {
+    if (nl >= MAX_LAMPS) break;
+    const [lx, ly] = lonLatToWorld(l.lon, l.lat, 0);
+    const [le, ln] = mercToLocal(fl, lx / TILE, ly / TILE);
+    lampBuf.set([le, ln, l.radius, l.power], nl++ * 4);
+  }
+  renderer.draw(view, dz, { ...art, sunAz }, { time, fogAlt, fade: fade * fade * (3 - 2 * fade), ink, ground: gnd, night, lamps: lampBuf.subarray(0, nl * 4) });
+  document.body.classList.toggle('night', night > 0.5);
 
+  const solvedTrail = game.trail();
+  minimap.trail = solvedTrail;
   minimap.draw(now, fl, dz, mapMetres, store, peaks);
   const v = view;
   const proj = (p: Peak) => {
@@ -460,6 +602,8 @@ function frame(now: number): void {
     return project(v, e, n, p.ele);
   };
   labels.update(now, proj, w, h, places, v.far * 0.6);
+  trail.update(proj, solvedTrail, w, h);
+  world.update(w, h);
 
   // ---- adaptive resolution ----
   if (pinnedScale) slowFrames = fastFrames = 0;

@@ -9,7 +9,10 @@
   </head>
   <body class="ink">
     <canvas id="terrain" aria-label="The Alps rendered as folded paper"></canvas>
-    <div id="labels" aria-hidden="true"></div>
+    <svg id="trail" aria-hidden="true"></svg>
+    <div id="labels"></div>
+    <!-- above the labels: tappable world points (lamps…) win over a label under them -->
+    <svg id="world"></svg>
     <div id="zone-left" class="zone zone-left" aria-hidden="true"></div>
     <div id="zone-right" class="zone zone-right" aria-hidden="true"></div>
 
@@ -22,17 +25,40 @@
 
       <div class="toolbar">
         <button id="music" class="chip sound" aria-pressed="false" aria-label="Turn sound on" title="Sound (M)">
-          <svg class="i-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
-          <svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <span data-icon="speaker-high" data-icon-class="i-on"></span><span data-icon="speaker-x" data-icon-class="i-off"></span>
         </button>
         <button id="inkmode" class="chip" title="Paper (I)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="1.6" /><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" /></svg>
+          <span data-icon="circle-half"></span>
+        </button>
+        <button id="notebook" class="chip" aria-label="Open the notebook" title="Notebook (C)">
+          <span data-icon="book-open"></span>
         </button>
         <button id="minimap" class="chip" aria-pressed="true" title="Map (P)">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5l5.5-2 6 2 5.5-2v13l-5.5 2-6-2-5.5 2z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" /><path d="M9 4.5v13M15 6.5v13" fill="none" stroke="currentColor" stroke-width="1.2" /></svg>
+          <span data-icon="map-trifold"></span>
         </button>
         <button id="north" class="chip" aria-label="Reset north up" title="North up (N)">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5l4 8.5h-8z" /><path d="M8 12h8l-4 8.5z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" /></svg>
+        </button>
+      </div>
+
+      <div id="toolbox" class="toolbox">
+        <button class="chip" data-tool="enigma" aria-label="enigma" title="enigma">
+          <span data-icon="lock-key"></span>
+        </button>
+        <button class="chip" data-tool="notepad" aria-label="notepad" title="notepad">
+          <span data-icon="notepad"></span>
+        </button>
+        <button class="chip" data-tool="binutf" aria-label="binutf" title="binutf">
+          <span data-icon="binary"></span>
+        </button>
+        <button class="chip" data-tool="gis" aria-label="gis" title="gis">
+          <span data-icon="stack"></span>
+        </button>
+        <button class="chip" data-tool="recorder" aria-label="recorder" title="recorder">
+          <span data-icon="microphone"></span>
+        </button>
+        <button class="chip" data-tool="quine" aria-label="quine" title="quine">
+          <span data-icon="code-block"></span>
         </button>
       </div>
 
@@ -40,7 +66,7 @@
         <div id="mapbox" class="mapbox"></div>
       </div>
 
-      <div class="hint">w/s throttle · a/d yaw · ↓↑ pitch · ←→ roll · i ink · p map · n north · m sound</div>
+      <div class="hint">w/s throttle · a/d yaw · ↓↑ pitch · ←→ roll · c notebook · t plan · i ink · p map · n north · m sound</div>
     </div>
 
     <div id="veil">
@@ -52,14 +78,13 @@
           <span>FLY</span>
         </button>
         <button id="veil-sound" class="chip sound" aria-pressed="true" aria-label="Turn sound off" title="Sound">
-          <svg class="i-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
-          <svg class="i-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" /></svg>
+          <span data-icon="speaker-high" data-icon-class="i-on"></span><span data-icon="speaker-x" data-icon-class="i-off"></span>
         </button>
       </div>
     </div>
 
     <footer class="credits">
-      DEM <a href="https://mapterhorn.com" target="_blank" rel="noopener">Mapterhorn</a> · peaks © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>
+      DEM <a href="https://mapterhorn.com" target="_blank" rel="noopener">Mapterhorn</a> · peaks © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> · icons <a href="https://phosphoricons.com" target="_blank" rel="noopener">Phosphor</a>
     </footer>
     <script type="module" src="/src/main.ts"></script>
   </body>
