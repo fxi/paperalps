@@ -4,7 +4,7 @@ Newest first. Format and rules: see `AGENTS.md`.
 
 ## The 50 summits: a sealed escape game, toolbox, first five steps
 
-- **Commit:** `feat(game): sealed puzzle chain, toolbox, world hooks and first five steps`
+- **Commit:** `1be59a4`: `feat(game): sealed puzzle chain, toolbox, world hooks and first five steps`
 - **Date:** 2026-11-08
 - **Who:** fxi (concept, direction, playtesting) · Claude (design,
   implementation) · Codex gpt-6.1-sol (design review)
