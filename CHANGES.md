@@ -2,6 +2,23 @@
 
 Newest first. Format and rules: see `AGENTS.md`.
 
+## Releases with release-it, deploy on tags
+
+- **Commit:** `build: release-it, deploy only tagged releases`
+- **Date:** 2026-11-11
+- **Who:** fxi (request) · Claude (implementation)
+- **Why:** the game goes to outside playtesters: what is online must be a
+  deliberate, versioned release, not whatever was last pushed to `main`.
+- **What:** `release-it` 21.1.1 and `@release-it/conventional-changelog`
+  (dev only), `.release-it.json`, `npm run release`: on `main` with a clean
+  tree it runs tsc, tests and build, bumps the version from the Conventional
+  Commits, commits `chore(release): v<version>`, tags, pushes and writes the
+  GitHub Release notes from the commits. CI deploys Pages only on `v*` tags.
+  `AGENTS.md` updated.
+- **Notes:** needs a GitHub token (`GITHUB_TOKEN=$(gh auth token)`). The
+  `github-pages` environment must allow `v*` tags. `CHANGES.md` stays
+  hand-written; no generated changelog file.
+
 ## The 50 summits: a sealed escape game, toolbox, first five steps
 
 - **Commit:** `1be59a4`: `feat(game): sealed puzzle chain, toolbox, world hooks and first five steps`

@@ -41,8 +41,11 @@ earlier commits only (a commit can't contain its own hash).
   needs `dwebp`), `npm run build`, `npm run peaks` (refresh OSM peaks).
 - Before committing: `npx tsc --noEmit`, `npm test`, `npm run build` must pass.
 - CI (`.github/workflows/ci.yml`) runs the same checks on every push and PR.
-  A push to `main` also deploys `dist/` to GitHub Pages (source: GitHub
-  Actions) at https://fxi.io/paperalps/. Vite uses `base: './'`, so the build
+  Only a release deploys `dist/` to GitHub Pages (source: GitHub Actions) at
+  https://fxi.io/paperalps/: `npm run release` on `main` (release-it,
+  `.release-it.json`) runs the checks, bumps the version from the commits,
+  tags `v*`, pushes and creates a GitHub Release; the tag triggers the deploy.
+  Pushing to `main` alone deploys nothing. Vite uses `base: './'`, so the build
   works under that sub-path. Vitest config lives in `vitest.config.ts`.
 - Debug: `?debug` shows art sliders and enables the GPU timer
   (`window.renderer.gpuMs`); `?scale=1.25` pins the render scale (disables

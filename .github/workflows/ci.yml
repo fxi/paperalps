@@ -3,6 +3,7 @@ name: ci
 on:
   push:
     branches: [main, paper-alps]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -27,13 +28,14 @@ jobs:
       - run: npm test
       - run: npm run build
       - uses: actions/upload-pages-artifact@v4
-        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           path: dist
 
   deploy:
     # GitHub Pages (source: GitHub Actions) -> https://fxi.io/paperalps/
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    # only releases deploy: a v* tag pushed by `npm run release`
+    if: startsWith(github.ref, 'refs/tags/v')
     needs: check
     runs-on: ubuntu-latest
     permissions:
