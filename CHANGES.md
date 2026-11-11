@@ -4,7 +4,7 @@ Newest first. Format and rules: see `AGENTS.md`.
 
 ## Releases with release-it, deploy on tags
 
-- **Commit:** `build: release-it, deploy only tagged releases`
+- **Commit:** `0fd3b8d`: `build: release-it, deploy only tagged releases`
 - **Date:** 2026-11-11
 - **Who:** fxi (request) · Claude (implementation)
 - **Why:** the game goes to outside playtesters: what is online must be a
